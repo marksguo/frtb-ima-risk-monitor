@@ -1,0 +1,10 @@
+yfinance
+pandas
+numpy
+sqlalchemy
+psycopg2-binary
+anthropic
+plotly
+dash
+python-dotenv
+scipy
