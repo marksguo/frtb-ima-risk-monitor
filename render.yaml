@@ -1,0 +1,15 @@
+# Render Blueprint: deploys the dashboard as a free web service.
+# It serves the committed read-only SQLite snapshot (USE_SNAPSHOT=1), so no
+# database needs to be provisioned. On Render: New > Blueprint > pick this repo.
+services:
+  - type: web
+    name: frtb-ima-risk-monitor
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn dashboard.app:server --bind 0.0.0.0:$PORT
+    envVars:
+      - key: USE_SNAPSHOT
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.13.4"

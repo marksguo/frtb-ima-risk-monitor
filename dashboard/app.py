@@ -178,6 +178,8 @@ def backtest_table():
 
 app = Dash(__name__)
 app.title = "FRTB IMA Risk Monitor"
+# Exposed so a production WSGI server can serve it: gunicorn dashboard.app:server
+server = app.server
 
 _panel_style = {"backgroundColor": PANEL, "borderRadius": "8px", "padding": "8px"}
 

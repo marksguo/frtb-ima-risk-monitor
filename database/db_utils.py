@@ -30,9 +30,17 @@ from sqlalchemy.engine import Engine
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = PROJECT_ROOT / ".env"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
+# Committed read-only SQLite snapshot used for the hosted dashboard demo, so the
+# deployed app needs no live PostgreSQL. Activated by setting USE_SNAPSHOT=1.
+SNAPSHOT_PATH = PROJECT_ROOT / "data" / "frtb_snapshot.sqlite"
 
 # Load environment variables from the project .env exactly once on import.
 load_dotenv(ENV_PATH)
+
+
+def _use_snapshot() -> bool:
+    """True if the read-only SQLite snapshot should be used instead of Postgres."""
+    return os.getenv("USE_SNAPSHOT", "").lower() in {"1", "true", "yes"}
 
 
 def _require_env(name: str) -> str:
@@ -83,8 +91,12 @@ def get_engine(dbname: Optional[str] = None) -> Engine:
         dbname: optional database name override. Defaults to DB_NAME from .env.
     Output:
         A configured SQLAlchemy Engine. ``pool_pre_ping`` recycles dead
-        connections so scheduled daily runs survive idle disconnects.
+        connections so scheduled daily runs survive idle disconnects. When
+        USE_SNAPSHOT is set, returns a read-only SQLite engine over the
+        committed snapshot instead (used by the hosted dashboard).
     """
+    if _use_snapshot():
+        return create_engine(f"sqlite:///{SNAPSHOT_PATH}", future=True)
     return create_engine(_connection_url(dbname), pool_pre_ping=True, future=True)
 
 
