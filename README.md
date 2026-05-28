@@ -1,5 +1,6 @@
 # FRTB IMA Risk Monitor
 
+[![Live Demo](https://img.shields.io/badge/live%20demo-online-brightgreen.svg)](https://frtb-ima-risk-monitor.onrender.com/)
 [![CI](https://github.com/marksguo/frtb-ima-risk-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/marksguo/frtb-ima-risk-monitor/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.13-blue.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791.svg)
@@ -7,6 +8,8 @@
 ![Built with Claude Code](https://img.shields.io/badge/built%20with-Claude%20Code-8A2BE2.svg)
 
 ![FRTB IMA Risk Monitor dashboard](assets/dashboard.png)
+
+**Live dashboard:** https://frtb-ima-risk-monitor.onrender.com/ — interactive, served from a point-in-time data snapshot. (Free hosting tier: the first load after a period of inactivity may take ~30-60s to wake up.)
 
 > A daily, automated FRTB Internal Models Approach risk monitor: Historical-
 > Simulation VaR / Expected Shortfall, stress calibration, liquidity-horizon
