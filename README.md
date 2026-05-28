@@ -1,5 +1,11 @@
 # FRTB IMA Risk Monitor
 
+[![CI](https://github.com/marksguo/frtb-ima-risk-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/marksguo/frtb-ima-risk-monitor/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.13-blue.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Built with Claude Code](https://img.shields.io/badge/built%20with-Claude%20Code-8A2BE2.svg)
+
 ![FRTB IMA Risk Monitor dashboard](assets/dashboard.png)
 
 > A daily, automated FRTB Internal Models Approach risk monitor: Historical-
@@ -7,6 +13,20 @@
 > scaling, weekly Acerbi-Szekely backtesting, and Claude-generated narratives —
 > on a synthetic multi-asset trading book, served to a live Plotly Dash
 > dashboard and a PostgreSQL backend.
+
+## Contents
+
+- [Project Overview](#1-project-overview)
+- [What is FRTB IMA](#2-what-is-frtb-ima)
+- [Methodology](#3-methodology)
+- [How Claude Code and the Claude API Were Used](#4-how-claude-code-and-the-claude-api-were-used)
+- [Tech Stack](#5-tech-stack)
+- [Architecture](#architecture)
+- [Setup Instructions](#6-setup-instructions)
+- [Sample Output](#7-sample-output)
+- [Key Findings](#8-key-findings)
+- [Methodology Notebook](#methodology-notebook)
+- [Testing](#testing)
 
 ## 1. Project Overview
 
@@ -81,6 +101,8 @@ forward-looking regime note.
 - **Plotly Dash** - dashboard
 - **Windows Task Scheduler** - daily automation
 - **python-dotenv** - secret management (keys never hardcoded)
+- **pytest + GitHub Actions** - unit-tested risk math, CI on every push
+- **Docker + docker-compose** - one-command reproducible stack
 
 ## Architecture
 
@@ -128,6 +150,18 @@ The pipeline is wired into Windows Task Scheduler for daily execution; it calls
 `pipeline/run_pipeline.py` with the absolute Python path and logs to
 `outputs/pipeline_log.txt`.
 
+### Run with Docker (no local Postgres needed)
+
+`docker-compose.yml` provisions PostgreSQL and the app together:
+
+```bash
+docker compose up --build
+# then open http://localhost:8050
+```
+
+To enable Claude narratives inside the container, pass your key:
+`ANTHROPIC_API_KEY=sk-... docker compose up --build`.
+
 ## 7. Sample Output
 
 All charts below are generated from the live database by
@@ -165,3 +199,21 @@ From the first full run (data through 2026-05-27, ~19 years of history):
   -0.2. The most recent week (ending 2026-05-22) passes with Z2 = -0.19. This is
   the headline insight: a simple rolling-window ES is materially pro-cyclical,
   which is why FRTB layers a stressed-ES floor on top of it.
+
+## Methodology Notebook
+
+For a deeper, plot-by-plot walk-through of the risk math - comparing Historical,
+Normal, and Student-t VaR/ES, the rolling risk series, and Kupiec / Christoffersen
+VaR backtests - see [`notebooks/methodology.ipynb`](notebooks/methodology.ipynb).
+It renders with charts inline on GitHub and is self-contained (it pulls its own
+market data, so no database is required to run it).
+
+## Testing
+
+The pure risk functions (VaR/ES, Acerbi-Szekely Z2, Kupiec POF, Christoffersen,
+and NMRF classification) are covered by a `pytest` suite that runs in CI
+([GitHub Actions](.github/workflows/ci.yml)) on every push:
+
+```bash
+pytest -q
+```

@@ -1,0 +1,11 @@
+# Never bake secrets or local cruft into the image.
+.env
+.git
+.github
+__pycache__/
+*.pyc
+outputs/
+assets/
+notebooks/
+tests/
+*.hyper

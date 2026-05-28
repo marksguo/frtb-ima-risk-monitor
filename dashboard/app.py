@@ -228,4 +228,11 @@ def refresh_panels(_n):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8050, debug=False)
+    # Host/port are configurable via env so the same app serves locally
+    # (127.0.0.1) and inside a container (DASH_HOST=0.0.0.0).
+    import os
+    app.run(
+        host=os.getenv("DASH_HOST", "127.0.0.1"),
+        port=int(os.getenv("DASH_PORT", "8050")),
+        debug=False,
+    )

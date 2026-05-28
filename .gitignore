@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 outputs/
 *.hyper
+.pytest_cache/
+.ipynb_checkpoints/

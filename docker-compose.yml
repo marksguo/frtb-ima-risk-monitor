@@ -1,0 +1,41 @@
+# One-command local stack: PostgreSQL + the FRTB Risk Monitor app.
+#   docker compose up --build
+# then open http://localhost:8050
+#
+# The DB_PASSWORD here is a throwaway local-container credential, not a secret.
+# To enable Claude narratives, pass your key:  ANTHROPIC_API_KEY=sk-... docker compose up
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: frtb_monitor
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: frtb_local_pw
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d frtb_monitor"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: frtb_monitor
+      DB_USER: postgres
+      DB_PASSWORD: frtb_local_pw
+      DASH_HOST: 0.0.0.0
+      DASH_PORT: "8050"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8050:8050"
+
+volumes:
+  pgdata:
