@@ -27,6 +27,7 @@
 - [Architecture](#architecture)
 - [Setup Instructions](#6-setup-instructions)
 - [Sample Output](#7-sample-output)
+- [How to Read the Dashboard](#how-to-read-the-dashboard)
 - [Key Findings](#8-key-findings)
 - [Methodology Notebook](#methodology-notebook)
 - [Testing](#testing)
@@ -179,6 +180,42 @@ All charts below are generated from the live database by
 
 The interactive version of these four panels is the Plotly Dash dashboard at
 `http://127.0.0.1:8050` (run `python dashboard/app.py`).
+
+## How to Read the Dashboard
+
+New to market risk? Here is the whole dashboard in plain language. Every value is
+a **fraction of the portfolio's value**, so `0.0156` means **1.56%** (on a
+$100,000 book, about $1,560).
+
+**ES vs VaR over time (top-left)** - two ways to measure "a bad day":
+- **VaR (Value at Risk)** is the flood-wall height: on roughly 39 of every 40
+  days, the daily loss should stay below it (about 1.16% in the snapshot shown).
+- **ES (Expected Shortfall)** is how deep the water gets on the rare days the wall
+  is overtopped - the *average* loss on the worst ~1 day in 40 (about 1.56%). ES
+  is always the higher line; when the two spread apart, the rare bad days are
+  getting relatively more painful.
+
+**Volatility regime (top-right)** - "volatility" is how wildly prices are swinging.
+The background compares recent swings to the long-run norm: green = normal,
+amber = elevated, red = stressed (crisis-like). Losses tend to grow when the
+background turns red.
+
+**Why ES sits on a 0.01-0.03 scale** - it is a daily loss as a fraction of the
+book. Related figures: **stressed ES** recalibrates to a past crisis (a "what if
+2008 returned" buffer), and **liquidity-adjusted ES** is larger still because some
+holdings take weeks to unwind safely, leaving you exposed for longer.
+
+**Asset ES contribution (bottom-left)** - an itemized bill of risk: which of the 6
+holdings is driving most of today's potential bad-day loss. A taller bar means
+that asset contributes more risk, which is where a manager would trim first.
+
+**Weekly backtest (bottom-right)** - the "is the model any good?" check. The
+Acerbi-Szekely **Z2** score is near 0 when the model is accurate and strongly
+negative when it underestimated risk. **PASS** (green) means the model held up
+that week; **FAIL** (red) means it understated risk (the pass line is Z2 = -0.2).
+Across all history the model fails about 54% of weeks - not a bug but a real
+finding: simple risk models react too slowly to sudden turbulence, which is
+exactly why regulators require the extra stressed-capital buffer.
 
 ## 8. Key Findings
 
