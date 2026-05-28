@@ -29,6 +29,7 @@
 - [Sample Output](#7-sample-output)
 - [How to Read the Dashboard](#how-to-read-the-dashboard)
 - [Key Findings](#8-key-findings)
+- [Limitations & Open Questions](#limitations--open-questions)
 - [Methodology Notebook](#methodology-notebook)
 - [Testing](#testing)
 
@@ -78,6 +79,20 @@ below -0.2 fails, signalling ES is underestimating tail risk.
 **Sign convention.** VaR and ES are stored as positive loss magnitudes. This is
 the standard risk-reporting convention and makes the Acerbi-Szekely indicator
 `1(R_t < -VaR_t)` behave correctly.
+
+**Comparison estimators.** Alongside production Historical Simulation, the project
+computes parametric (Normal) and Monte Carlo (Student-t) VaR/ES, plus a
+volatility-scaled **Filtered Historical Simulation** (EWMA), to show how the
+distributional assumption and volatility-responsiveness change the tail estimate
+(`pipeline/var_methods.py`). Two further VaR backtests - **Kupiec POF** and
+**Christoffersen** independence/conditional-coverage - complement Acerbi-Szekely
+(`pipeline/var_backtests.py`).
+
+**Capital and the Standardised Approach floor.** A simplified FRTB Standardised
+Approach (SBM delta) charge (`pipeline/standardised_approach.py`) is compared to
+an approximate IMA capital charge (multiplier x liquidity-adjusted stressed ES),
+with the Basel III **output floor** applied: final capital = max(IMA, 72.5% x SA)
+(`pipeline/capital.py`). This shows which approach binds.
 
 ## 4. How Claude Code and the Claude API Were Used
 
@@ -178,6 +193,12 @@ All charts below are generated from the live database by
 | **Per-Asset ES Contribution** | **Acerbi-Szekely Backtest (Z2)** |
 | ![Asset ES contribution](assets/asset_contributions.png) | ![Backtest Z2](assets/backtest_z2.png) |
 
+**Capital: Internal Models Approach vs the Standardised Approach** (the internal
+model gives a lower charge, but the Basel III output floor lifts final capital to
+72.5% of the SA):
+
+![Capital comparison](assets/capital_comparison.png)
+
 The interactive version of these four panels is the Plotly Dash dashboard at
 `http://127.0.0.1:8050` (run `python dashboard/app.py`).
 
@@ -239,6 +260,32 @@ From the first full run (data through 2026-05-27, ~19 years of history):
   -0.2. The most recent week (ending 2026-05-22) passes with Z2 = -0.19. This is
   the headline insight: a simple rolling-window ES is materially pro-cyclical,
   which is why FRTB layers a stressed-ES floor on top of it.
+
+## Limitations & Open Questions
+
+This is a teaching/portfolio implementation; the simplifications below are
+deliberate, and each is a direction for further work.
+
+- **Liquidity-horizon scaling is simplified.** Real FRTB scales 10-day ES into
+  five horizon buckets (10/20/40/60/120 days) and aggregates with a prescribed
+  square-root formula; this project uses a per-asset `sqrt(LH/10)` weighted sum.
+  *Open question: how far does the simplification sit from the regulatory formula?*
+- **Capital figures are illustrative.** The IMA charge is approximated as
+  multiplier x liquidity-adjusted stressed ES; the full IMCC also blends
+  diversified/undiversified ES, the NMRF Stressed-ES add-on, and the Default Risk
+  Charge. The SA uses representative (not per-vertex) risk weights and delta risk
+  only - the linear ETF book has no vega or curvature.
+- **The model fails ~54% of weekly backtests**, driven by volatility clustering
+  that plain Historical Simulation reacts to slowly. *Open question: how much does
+  the Filtered (EWMA) HS in the notebook raise the pass rate?*
+- **NMRF is a flag, not a charge.** *Open question: how to translate
+  non-modellability into the Stressed-ES add-on the rules require?*
+- **No P&L Attribution (PLA) test.** FRTB-IMA desk eligibility requires PLA
+  (Spearman + KS between front-office and risk-theoretical P&L). *Open question:
+  would these desks qualify for IMA?*
+- **Synthetic, equal-weight, linear book** - no dynamic positions, options, or
+  cross-asset tail dependence (copulas). *Open question: how would non-linear
+  payoffs and joint tail risk change the numbers?*
 
 ## Methodology Notebook
 

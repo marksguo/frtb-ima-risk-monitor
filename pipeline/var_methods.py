@@ -87,6 +87,53 @@ def monte_carlo_t_var_es(returns: np.ndarray, alpha: float = 0.025,
     return (-float(q), float(-tail.mean()))
 
 
+def ewma_volatility(returns: np.ndarray, lam: float = 0.94) -> np.ndarray:
+    """One-step-ahead EWMA (RiskMetrics) conditional volatility series.
+
+    sigma_t^2 = lam * sigma_{t-1}^2 + (1 - lam) * r_{t-1}^2, seeded with the
+    sample variance. Each sigma_t uses information up to t-1 (no look-ahead).
+
+    Inputs:
+        returns: 1-D array of periodic returns.
+        lam:     decay factor (0.94 is the RiskMetrics daily default).
+    Output:
+        Array of conditional volatilities, same length as returns.
+    """
+    returns = np.asarray(returns, dtype=float)
+    var = np.empty(len(returns))
+    var[0] = returns.var()
+    for t in range(1, len(returns)):
+        var[t] = lam * var[t - 1] + (1 - lam) * returns[t - 1] ** 2
+    return np.sqrt(var)
+
+
+def filtered_historical_var_es(returns: np.ndarray, alpha: float = 0.025,
+                               lam: float = 0.94) -> tuple[float, float]:
+    """Filtered Historical Simulation VaR and ES (volatility-scaled).
+
+    Standardises each historical return by its EWMA conditional volatility, then
+    re-scales by the *current* volatility before taking the empirical tail. This
+    lets the estimate react quickly to volatility regime shifts - the standard
+    fix for the procyclicality of plain Historical Simulation.
+
+    Inputs:
+        returns: 1-D array of periodic returns.
+        alpha:   tail probability.
+        lam:     EWMA decay factor.
+    Output:
+        (var, es) as positive loss magnitudes.
+    """
+    returns = np.asarray(returns, dtype=float)
+    sigma = ewma_volatility(returns, lam)
+    safe = sigma > 0
+    z = returns[safe] / sigma[safe]            # volatility-standardised returns
+    filtered = z * sigma[-1]                    # rescale to current volatility
+    q = np.quantile(filtered, alpha)
+    tail = filtered[filtered <= q]
+    es = -tail.mean() if tail.size else -q
+    return (-float(q), float(es))
+
+
 def compare_methods(returns: np.ndarray, alpha: float = 0.025) -> dict[str, dict[str, float]]:
     """Run all three estimators on one window and return their VaR/ES.
 

@@ -6,8 +6,11 @@ from scipy import stats
 
 from pipeline.var_methods import (
     historical_var_es, parametric_var_es, monte_carlo_t_var_es, compare_methods,
+    ewma_volatility, filtered_historical_var_es,
 )
 from pipeline.var_backtests import kupiec_pof, christoffersen, breaches_from
+from pipeline.standardised_approach import sbm_delta_charge, SA_RISK_WEIGHTS
+from pipeline.capital import ima_capital, apply_output_floor, capital_comparison
 from pipeline.calculate_risk import var_es_from_window
 from pipeline.backtest import acerbi_szekely_z2
 from pipeline.nmrf_checker import classify_nmrf
@@ -159,3 +162,64 @@ def test_nmrf_too_few_observations_flagged():
 def test_nmrf_empty_flagged():
     is_nmrf, n_obs, _ = classify_nmrf(pd.DatetimeIndex([]))
     assert is_nmrf is True and n_obs == 0
+
+
+# --------------------------------------------------------------------------
+# Filtered (EWMA) Historical Simulation
+# --------------------------------------------------------------------------
+def test_ewma_volatility_positive_and_aligned():
+    rng = np.random.default_rng(11)
+    r = rng.normal(0, 0.01, 500)
+    sigma = ewma_volatility(r)
+    assert len(sigma) == len(r) and np.all(sigma > 0)
+
+
+def test_filtered_hs_reacts_to_current_volatility():
+    """With a calm history then a volatile tail, filtered HS VaR exceeds plain HS."""
+    rng = np.random.default_rng(12)
+    calm = rng.normal(0, 0.005, 500)
+    turbulent = rng.normal(0, 0.03, 60)
+    r = np.concatenate([calm, turbulent])
+    plain_var, _ = historical_var_es(r)
+    filt_var, filt_es = filtered_historical_var_es(r)
+    assert filt_var > plain_var          # reacts to the elevated current vol
+    assert filt_es >= filt_var > 0
+
+
+# --------------------------------------------------------------------------
+# Standardised Approach (SBM delta)
+# --------------------------------------------------------------------------
+def test_sbm_total_equals_sum_of_breakdown():
+    total, breakdown = sbm_delta_charge()
+    assert total == pytest.approx(sum(b["charge"] for b in breakdown.values()))
+    # equal weights, notional 1 -> total = mean of the six risk weights
+    assert total == pytest.approx(sum(SA_RISK_WEIGHTS.values()) / 6, rel=1e-9)
+
+
+def test_sbm_scales_with_notional():
+    base, _ = sbm_delta_charge(notional=1.0)
+    scaled, _ = sbm_delta_charge(notional=1_000_000.0)
+    assert scaled == pytest.approx(base * 1_000_000.0)
+
+
+# --------------------------------------------------------------------------
+# Capital: IMA vs SA and the output floor
+# --------------------------------------------------------------------------
+def test_output_floor_binds_when_ima_low():
+    out = apply_output_floor(ima=0.08, sa=0.155)
+    assert out["floor_value"] == pytest.approx(0.725 * 0.155)
+    assert out["capital"] == pytest.approx(0.725 * 0.155)
+    assert out["binding"] == "SA output floor"
+
+
+def test_internal_model_binds_when_ima_high():
+    out = apply_output_floor(ima=0.30, sa=0.155)
+    assert out["capital"] == pytest.approx(0.30)
+    assert out["binding"].startswith("Internal model")
+
+
+def test_capital_comparison_keys():
+    out = capital_comparison(es_975=0.0156, es_stressed=0.0247,
+                             liquidity_adjusted_es=0.0336, sa_charge=0.155)
+    assert {"ima", "sa", "capital", "binding", "liq_adj_stressed_es"} <= set(out)
+    assert ima_capital(out["liq_adj_stressed_es"]) == pytest.approx(out["ima"])

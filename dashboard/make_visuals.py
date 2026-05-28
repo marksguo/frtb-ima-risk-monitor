@@ -184,10 +184,35 @@ def build_composite() -> None:
     fig.write_image(str(ASSETS / "dashboard.png"), width=1500, height=950, scale=2)
 
 
+def build_capital_chart() -> None:
+    """Write the IMA vs SA vs output-floor capital comparison chart."""
+    from pipeline.standardised_approach import sbm_delta_charge
+    from pipeline.capital import capital_comparison
+
+    m = run_query("SELECT es_975, es_stressed, liquidity_adjusted_es "
+                  "FROM daily_risk_metrics ORDER BY date DESC LIMIT 1")
+    if m.empty:
+        return
+    row = m.iloc[0]
+    sa, _ = sbm_delta_charge()
+    cmp = capital_comparison(float(row["es_975"]), float(row["es_stressed"]),
+                             float(row["liquidity_adjusted_es"]), sa)
+    labels = ["IMA model", "SA (SBM)", "Output floor<br>(72.5% x SA)", "Final capital"]
+    vals = [cmp["ima"] * 100, cmp["sa"] * 100,
+            cmp["floor_value"] * 100, cmp["capital"] * 100]
+    colors = ["#58a6ff", "#f78166", "#8b949e", "#2ecc71"]
+    fig = go.Figure(go.Bar(x=labels, y=vals, marker_color=colors,
+                           text=[f"{v:.1f}%" for v in vals], textposition="outside"))
+    _dark(fig, "Capital charge: IMA vs Standardised Approach")
+    fig.update_yaxes(title="% of notional")
+    fig.write_image(str(ASSETS / "capital_comparison.png"), width=900, height=500, scale=2)
+
+
 def main() -> None:
     """Generate all visuals and report the files written."""
     build_individual()
     build_composite()
+    build_capital_chart()
     written = sorted(p.name for p in ASSETS.glob("*.png"))
     print(f"[make_visuals] Wrote {len(written)} images to assets/: {', '.join(written)}")
 
