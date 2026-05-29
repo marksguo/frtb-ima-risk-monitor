@@ -5,6 +5,7 @@ sqlalchemy
 psycopg2-binary
 anthropic
 plotly
+matplotlib
 dash
 python-dotenv
 scipy

@@ -5,3 +5,5 @@ outputs/
 *.hyper
 .pytest_cache/
 .ipynb_checkpoints/
+# Ephemeral working SQLite DBs (the committed demo snapshot is frtb_snapshot.sqlite)
+data/_*.sqlite

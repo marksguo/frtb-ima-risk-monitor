@@ -35,8 +35,12 @@ for _stream in (sys.stdout, sys.stderr):
 
 LOG_PATH = PROJECT_ROOT / "outputs" / "pipeline_log.txt"
 
-from database.db_utils import create_database, init_schema, get_engine, run_query
-from pipeline import fetch_prices, calculate_risk, nmrf_checker, backtest
+from database.db_utils import (
+    create_database, init_schema, get_engine, run_query, _is_sqlite,
+)
+from pipeline import (
+    fetch_prices, calculate_risk, nmrf_checker, backtest, event_detector,
+)
 from narrative import generate_summary
 
 FRIDAY = 4
@@ -113,8 +117,14 @@ def main() -> None:
     logger.info("FRTB pipeline run starting")
 
     # Self-bootstrap so a fresh machine works without manual setup. Idempotent.
-    if not _run_step(logger, "ensure database + schema",
-                     lambda: (create_database(), init_schema()), critical=True):
+    # create_database() is PostgreSQL-only (CREATE DATABASE); on SQLite the file
+    # and tables are created by init_schema(), so skip it there.
+    def _bootstrap() -> None:
+        if not _is_sqlite():
+            create_database()
+        init_schema()
+
+    if not _run_step(logger, "ensure database + schema", _bootstrap, critical=True):
         logger.info("Pipeline aborted at bootstrap.")
         return
 
@@ -135,6 +145,8 @@ def main() -> None:
             ran_backtest = _run_step(logger, "backtest", backtest.main, critical=False)
         else:
             logger.info("SKIP  backtest (not Friday and results already exist)")
+
+        _run_step(logger, "event_detector", event_detector.main, critical=False)
 
         _run_step(logger, "generate_summary", generate_summary.main, critical=False)
 

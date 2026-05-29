@@ -82,3 +82,20 @@ CREATE TABLE IF NOT EXISTS narrative_log (
     key_movers     TEXT,   -- JSON string of top moving assets
     created_at     TIMESTAMP DEFAULT NOW()
 );
+
+-- ---------------------------------------------------------------------------
+-- Table 5: events - notable daily signals worth surfacing (drives which days
+-- become LinkedIn posts). One row per (date, event_type), upserted on re-run.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS events (
+    id          SERIAL PRIMARY KEY,
+    date        DATE         NOT NULL,
+    event_type  VARCHAR(40)  NOT NULL,   -- regime_change, es_spike, es_high, backtest_breach
+    severity    VARCHAR(10),             -- info, warning, alert
+    headline    TEXT,
+    detail      TEXT,
+    created_at  TIMESTAMP    DEFAULT NOW(),
+    UNIQUE (date, event_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_date ON events (date);

@@ -15,7 +15,10 @@ Credentials are read from environment variables (see ``.env``):
 
 from __future__ import annotations
 
+import datetime as dt
 import os
+import re
+import sqlite3
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 from urllib.parse import quote_plus
@@ -37,10 +40,46 @@ SNAPSHOT_PATH = PROJECT_ROOT / "data" / "frtb_snapshot.sqlite"
 # Load environment variables from the project .env exactly once on import.
 load_dotenv(ENV_PATH)
 
+# Python 3.12 removed sqlite3's default date/datetime adapters, and the DBAPI
+# never accepted a pandas Timestamp as a bind parameter. Register ISO-text
+# adapters so the SQLite write-path (cloud / CI runs) can persist date columns.
+# Harmless for the PostgreSQL path, which binds through psycopg2, not sqlite3.
+sqlite3.register_adapter(pd.Timestamp, lambda v: v.strftime("%Y-%m-%d"))
+sqlite3.register_adapter(dt.datetime, lambda v: v.strftime("%Y-%m-%d %H:%M:%S"))
+sqlite3.register_adapter(dt.date, lambda v: v.isoformat())
+
 
 def _use_snapshot() -> bool:
     """True if the read-only SQLite snapshot should be used instead of Postgres."""
     return os.getenv("USE_SNAPSHOT", "").lower() in {"1", "true", "yes"}
+
+
+def _working_sqlite_path() -> Optional[str]:
+    """A read-write SQLite file path for cloud/CI runs with no PostgreSQL.
+
+    When FRTB_SQLITE_PATH is set, the whole pipeline reads and writes that SQLite
+    file. Distinct from USE_SNAPSHOT, which points at the committed read-only demo
+    snapshot used by the hosted dashboard.
+    """
+    return os.getenv("FRTB_SQLITE_PATH") or None
+
+
+def _is_sqlite() -> bool:
+    """True when the active engine is SQLite (working file or read-only snapshot)."""
+    return bool(_working_sqlite_path()) or _use_snapshot()
+
+
+def _to_sqlite_ddl(sql: str) -> str:
+    """Translate the PostgreSQL schema to SQLite-compatible DDL.
+
+    Only two constructs differ for our schema: SERIAL autoincrement PKs and the
+    NOW() default. Everything else (NUMERIC(p,s), VARCHAR(n), UNIQUE, BOOLEAN,
+    CREATE INDEX IF NOT EXISTS) is accepted by SQLite as written.
+    """
+    sql = re.sub(r"SERIAL\s+PRIMARY\s+KEY",
+                 "INTEGER PRIMARY KEY AUTOINCREMENT", sql, flags=re.I)
+    sql = re.sub(r"DEFAULT\s+NOW\(\)", "DEFAULT CURRENT_TIMESTAMP", sql, flags=re.I)
+    return sql
 
 
 def _require_env(name: str) -> str:
@@ -95,6 +134,9 @@ def get_engine(dbname: Optional[str] = None) -> Engine:
         USE_SNAPSHOT is set, returns a read-only SQLite engine over the
         committed snapshot instead (used by the hosted dashboard).
     """
+    working = _working_sqlite_path()
+    if working:
+        return create_engine(f"sqlite:///{working}", future=True)
     if _use_snapshot():
         return create_engine(f"sqlite:///{SNAPSHOT_PATH}", future=True)
     return create_engine(_connection_url(dbname), pool_pre_ping=True, future=True)
@@ -141,6 +183,8 @@ def init_schema() -> None:
     Output:  None. Side effect: all tables and indexes exist after this returns.
     """
     sql = SCHEMA_PATH.read_text(encoding="utf-8")
+    if _is_sqlite():
+        sql = _to_sqlite_ddl(sql)
     engine = get_engine()
     try:
         with engine.begin() as conn:
