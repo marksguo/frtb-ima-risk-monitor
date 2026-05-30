@@ -37,6 +37,9 @@ from narrative.generate_summary import (
 DRAFTS_DIR = Path(os.getenv("FRTB_DRAFTS_DIR")
                   or (Path(__file__).resolve().parent / "drafts"))
 REPO_URL = "github.com/marksguo/frtb-ima-risk-monitor"
+EXPLAINER_URL = (
+    "https://github.com/marksguo/frtb-ima-risk-monitor/blob/main/EXPLAINER.md"
+)
 FRIDAY = 4
 
 # Brand palette (matches the portfolio "quant terminal" aesthetic).
@@ -148,56 +151,142 @@ def render_card(ctx: dict, hist: pd.DataFrame, out_png: Path) -> None:
     plt.close(fig)
 
 
-def _fallback_caption(ctx: dict, events: list[dict], mode: str) -> str:
-    """Assemble a templated caption when no Claude API key is available."""
-    lead = (events[0]["headline"] if events
-            else f"Weekly risk recap | {ctx['date']}")
-    body = (f"The synthetic 6-asset FRTB book sits at a 97.5% Expected Shortfall of "
-            f"{ctx['es_975']:.2%} under a '{ctx['volatility_regime']}' volatility regime; "
-            f"stress-calibrated ES is {ctx['es_stressed']:.2%} and the liquidity-adjusted "
-            f"figure {ctx['liquidity_adjusted_es']:.2%}. Top mover: {ctx['top_mover']} "
-            f"({ctx['top_mover_return']:+.2f}%).")
-    return f"{lead}\n\n{body}\n\n#RiskManagement #FRTB #Quant #MarketRisk"
+# Voice spec for caption generation. Mirrors how Marks writes on LinkedIn: a
+# curious finance/stats junior showing his work, not a senior analyst. Strict
+# rules carry through to the templated fallback below.
+VOICE = (
+    "You are Marks Guo, a Statistics + Finance junior at the University of "
+    "Rochester. You built this small FRTB IMA risk-monitoring project as a "
+    "learning exercise and ongoing recruiting signal, and you write regular "
+    "LinkedIn updates about it in your own voice. Sound like a curious student "
+    "showing his work to a classmate, NOT a senior risk analyst.\n"
+    "\n"
+    "STRICT voice rules:\n"
+    "- NEVER use em-dashes (no '--' or '—'). Use commas, periods, "
+    "parentheses, or words like 'so' / 'which' instead.\n"
+    "- No polished-analyst openers. Avoid lines like 'Markets kept risk "
+    "managers honest', 'The real story sits in...', or 'X is not decoration, "
+    "it is Y in disguise'. That voice is wrong here.\n"
+    "- Plain English first. The first time a technical term appears (FRTB, "
+    "Expected Shortfall, 'stressed regime', 'liquidity horizon', etc.), "
+    "demystify it inline with a quick casual parenthetical.\n"
+    "- Frame numbers casually. E.g., 'about 1.5%, which is roughly the cushion "
+    "a bank would have to set aside in case tomorrow goes badly' rather than "
+    "'97.5% ES of 1.56% under stress-calibrated conditions'.\n"
+    "- Friendly conversational opener like 'Quick weekly update on the FRTB "
+    "Risk Monitor:', 'Caught something interesting on the risk monitor today:', "
+    "or 'Here's what showed up this week:'.\n"
+    "- Light. Curious. First-person. Show that you understand and can explain.\n"
+    "- End with 3 to 5 relevant hashtags on their own final line. Each hashtag "
+    "MUST be a single token with no spaces inside it (write "
+    "'#QuantitativeFinance', NOT '#Quantitative Finance')."
+)
 
 
-def write_caption(ctx: dict, events: list[dict], mode: str) -> str:
-    """Generate the LinkedIn caption (Claude when configured, else a template).
+def _format_metrics(ctx: dict, backtest: dict | None) -> str:
+    """One-paragraph data block handed to Claude. All numbers are facts to use."""
+    lines = [
+        f"Date: {ctx['date']}",
+        f"97.5% Expected Shortfall: {ctx['es_975']:.4f} ({ctx['es_975']:.2%})",
+        f"Stressed ES: {ctx['es_stressed']:.4f} ({ctx['es_stressed']:.2%})",
+        f"Liquidity-adjusted ES: {ctx['liquidity_adjusted_es']:.4f} "
+        f"({ctx['liquidity_adjusted_es']:.2%})",
+        f"Volatility regime: {ctx['volatility_regime']}",
+        f"Top mover today: {ctx['top_mover']} ({ctx['top_mover_return']:+.3f}%)",
+    ]
+    if backtest:
+        lines.append(
+            f"Weekly model backtest: {backtest['pass_fail']} "
+            f"(Acerbi-Szekely statistic {float(backtest['acerbi_szekely_statistic']):.4f}, "
+            f"{int(backtest['exceptions_count'])} VaR exceptions)"
+        )
+    return "\n".join(lines)
+
+
+def _fallback_caption(ctx: dict, events: list[dict], mode: str,
+                      backtest: dict | None) -> str:
+    """Templated caption when no Claude key is configured. Same voice."""
+    if mode == "weekly":
+        bt = ""
+        if backtest:
+            bt = (f" The weekly model self-check (backtest) "
+                  f"{str(backtest['pass_fail']).lower()}ed.")
+        return (
+            f"Quick weekly update on the FRTB Risk Monitor:\n\n"
+            f"The portfolio's 97.5% Expected Shortfall (basically the average "
+            f"loss on a really bad day) is about {ctx['es_975']:.2%}. Stress "
+            f"the model and that jumps to {ctx['es_stressed']:.2%}; factor in "
+            f"how long it would take to actually exit the riskier positions "
+            f"(the 'liquidity horizon' thing) and you get "
+            f"{ctx['liquidity_adjusted_es']:.2%}. The market is in a "
+            f"'{ctx['volatility_regime']}' regime, and today's biggest mover "
+            f"was {ctx['top_mover']} at {ctx['top_mover_return']:+.2f}%.{bt}\n\n"
+            f"Plain-English explainer if any of the terms are new: {EXPLAINER_URL}\n\n"
+            f"#FRTB #MarketRisk #ExpectedShortfall #QuantFinance"
+        )
+    # Event mode.
+    headline = (events[0]["headline"] if events else "Notable risk move")
+    return (
+        f"Quick update from the FRTB Risk Monitor: {headline.lower()}.\n\n"
+        f"Today's 97.5% Expected Shortfall (the average loss on a really bad "
+        f"day) sits at {ctx['es_975']:.2%}, stressed ES at "
+        f"{ctx['es_stressed']:.2%}, and the liquidity-adjusted figure at "
+        f"{ctx['liquidity_adjusted_es']:.2%}. The market regime is "
+        f"'{ctx['volatility_regime']}', and today's top mover was "
+        f"{ctx['top_mover']} at {ctx['top_mover_return']:+.2f}%.\n\n"
+        f"More context: {EXPLAINER_URL}\n\n"
+        f"#FRTB #MarketRisk #ExpectedShortfall #QuantFinance"
+    )
+
+
+def write_caption(ctx: dict, events: list[dict], mode: str,
+                  backtest: dict | None = None) -> str:
+    """Generate the LinkedIn caption in Marks's voice.
+
+    Uses Claude when ANTHROPIC_API_KEY is set; falls back to a templated voice
+    match otherwise so the package always builds.
 
     Inputs:
-        ctx:    daily context dict.
-        events: today's events (may be empty on the weekly digest day).
-        mode:   'event' or 'weekly'.
+        ctx:      daily context dict (date, es_975, regime, top_mover, ...).
+        events:   today's detected events (may be empty on the weekly digest day).
+        mode:     'event' or 'weekly'.
+        backtest: latest backtest row (dict) or None.
     Output:  the caption text.
     """
     if not api_key_configured():
-        return _fallback_caption(ctx, events, mode)
+        return _fallback_caption(ctx, events, mode, backtest)
 
     client = get_client()
     if mode == "weekly":
-        instruction = (
-            "Write a ~150-word weekly LinkedIn post recapping this synthetic FRTB IMA "
-            "risk book's week. Cover the current Expected Shortfall and what the "
-            "volatility regime implies, and end with one forward-looking insight."
+        ask = (
+            "Write a 4 to 6 short-paragraph weekly LinkedIn update in this "
+            "voice. Cover, briefly: a friendly opener, today's 97.5% Expected "
+            "Shortfall and what it means in plain English, how the stressed "
+            "and liquidity-adjusted numbers compare, what regime the market is "
+            "in and what that implies, the biggest mover and one short bit of "
+            "interpretation, the backtest result if it is informative, and one "
+            "curious forward-look. Include this explainer link on its own line "
+            f"near the end: {EXPLAINER_URL}. Total length around 180 to 240 "
+            "words."
         )
     else:
         headlines = "; ".join(e["headline"] for e in events) or "a notable risk move"
-        instruction = (
-            "Write a punchy 2-3 sentence LinkedIn post about today's notable risk "
-            f"event(s): {headlines}. Explain what happened and why it matters for FRTB "
-            "capital. Be specific with the numbers."
+        ask = (
+            "Write a punchy 3 to 5 sentence LinkedIn update in this voice "
+            f"about today's notable risk signal(s): {headlines}. Explain what "
+            "happened, give the relevant numbers casually, and add one short "
+            "line of plain-English interpretation. Optionally include the "
+            "explainer link if it would help a non-quant reader: "
+            f"{EXPLAINER_URL}. Total length around 80 to 140 words."
         )
+
     prompt = (
-        "You are a quantitative risk analyst posting to LinkedIn. "
-        f"{instruction}\n"
-        f"Metrics: date {ctx['date']}, 97.5% ES {ctx['es_975']:.4f}, stressed ES "
-        f"{ctx['es_stressed']:.4f}, liquidity-adjusted ES {ctx['liquidity_adjusted_es']:.4f}, "
-        f"regime {ctx['volatility_regime']}, top mover {ctx['top_mover']} "
-        f"{ctx['top_mover_return']}%.\n"
-        "Tone: sharp, professional, educational, accessible to finance students. "
-        "Do not use em-dashes. End with 3-4 relevant hashtags."
+        f"{VOICE}\n\n"
+        f"Task: {ask}\n\n"
+        f"Today's facts (use these exact numbers):\n{_format_metrics(ctx, backtest)}"
     )
     response = client.messages.create(
-        model="claude-sonnet-4-6", max_tokens=500,
+        model="claude-sonnet-4-6", max_tokens=700,
         messages=[{"role": "user", "content": prompt}],
     )
     return _message_text(response)
@@ -270,12 +359,18 @@ def main() -> None:
             print(f"[build_post] {date}: quiet day, no draft.")
             return
         hist = es_history(engine, n=60)
+        bt_df = run_query(
+            "SELECT pass_fail, acerbi_szekely_statistic, exceptions_count "
+            "FROM backtest_results ORDER BY week_ending DESC LIMIT 1",
+            engine=engine,
+        )
+        backtest = bt_df.iloc[0].to_dict() if not bt_df.empty else None
     finally:
         engine.dispose()
 
     png = DRAFTS_DIR / f"{date}.png"
     render_card(ctx, hist, png)
-    caption = write_caption(ctx, events, mode)
+    caption = write_caption(ctx, events, mode, backtest=backtest)
     md = write_draft(ctx, caption, events, mode, png.name)
     update_index()
     print(f"[build_post] {date}: wrote draft ({mode}) -> {md.name} + {png.name}")
