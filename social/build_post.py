@@ -161,6 +161,77 @@ def render_card(ctx: dict, hist: pd.DataFrame, out_png: Path) -> None:
     plt.close(fig)
 
 
+def render_card_wide(ctx: dict, hist: pd.DataFrame, out_png: Path) -> None:
+    """Render the article-cover variant at exactly 1920x1080 (16:9 landscape).
+
+    Same content as ``render_card`` rearranged for LinkedIn's Article cover
+    dimensions, so when this image is used as an article header it displays
+    cleanly on both feed and article views without cropping.
+
+    Inputs:
+        ctx:     daily context dict (date, es_975, regime, top_mover, ...).
+        hist:    trailing ES history for the sparkline (oldest-first).
+        out_png: destination path for the PNG.
+    Output:  None. Side effect: the PNG is written at exactly 1920x1080.
+    """
+    regime = str(ctx["volatility_regime"]).lower()
+    rcolor = REGIME_COLOR.get(regime, ACCENT)
+
+    fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
+    fig.patch.set_facecolor(BG)
+
+    # Header band: brand left, date right.
+    fig.text(0.04, 0.91, "FRTB IMA RISK MONITOR", color=ACCENT, fontsize=26,
+             fontweight="bold", family="monospace")
+    fig.text(0.96, 0.91, ctx["date"], color=MUTED, fontsize=18, ha="right",
+             family="monospace")
+
+    # Left column: headline label + huge percent.
+    fig.text(0.04, 0.74, "97.5% Expected Shortfall (1-day)", color=MUTED,
+             fontsize=22)
+    fig.text(0.04, 0.48, f"{ctx['es_975']:.2%}", color=FG, fontsize=140,
+             fontweight="bold")
+
+    # Regime badge below the headline number.
+    fig.text(0.04, 0.32, f"  {regime.upper()} REGIME  ", color=BG, fontsize=20,
+             fontweight="bold", family="monospace",
+             bbox=dict(boxstyle="round,pad=0.5", facecolor=rcolor,
+                       edgecolor="none"))
+
+    # Secondary stats: one row, fits comfortably across the left half at 1920px.
+    fig.text(0.04, 0.22,
+             f"Stressed ES  {ctx['es_stressed']:.2%}     "
+             f"Liquidity-adj ES  {ctx['liquidity_adjusted_es']:.2%}     "
+             f"Top mover  {ctx['top_mover']} {ctx['top_mover_return']:+.2f}%",
+             color=MUTED, fontsize=16)
+
+    # Sparkline on the right half.
+    if len(hist) >= 2:
+        ax = fig.add_axes([0.55, 0.27, 0.40, 0.50])
+        ax.plot(hist["date"], hist["es_975"], color=ACCENT, linewidth=2.5)
+        ax.fill_between(hist["date"], hist["es_975"], hist["es_975"].min(),
+                        color=ACCENT, alpha=0.12)
+        ax.scatter([hist["date"].iloc[-1]], [hist["es_975"].iloc[-1]],
+                   color=rcolor, s=70, zorder=5)
+        ax.set_facecolor(BG)
+        for s in ax.spines.values():
+            s.set_visible(False)
+        ax.tick_params(colors=MUTED, labelsize=11)
+        ax.set_xticks([])
+        ax.set_title(f"97.5% ES, trailing {len(hist)} days", color=MUTED,
+                     fontsize=14, loc="left")
+
+    # Footer: one line fits comfortably at 1920px.
+    fig.text(0.04, 0.08,
+             f"{REPO_URL}   |   6-asset multi-class book   |   "
+             "Historical Simulation, FRTB liquidity-horizon scaled",
+             color=MUTED, fontsize=12, family="monospace")
+
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_png, facecolor=BG)
+    plt.close(fig)
+
+
 # Voice spec for caption generation. Mirrors how Marks writes on LinkedIn:
 # memo-style title, no jargon hand-holding, no hashtags, ends with the explainer
 # link. The strict rules carry through to the templated fallback below.
@@ -319,15 +390,16 @@ def write_caption(ctx: dict, events: list[dict], mode: str,
 
 
 def write_draft(ctx: dict, caption: str, events: list[dict], mode: str,
-                png_name: str) -> Path:
+                png_name: str, cover_name: str) -> Path:
     """Write the draft markdown file with the caption and a review checklist.
 
     Inputs:
-        ctx:      daily context dict.
-        caption:  the generated caption text.
-        events:   today's events.
-        mode:     'event' or 'weekly'.
-        png_name: filename of the accompanying image (same folder).
+        ctx:        daily context dict.
+        caption:    the generated caption text.
+        events:     today's events.
+        mode:       'event' or 'weekly'.
+        png_name:   filename of the in-feed square image (same folder).
+        cover_name: filename of the article-cover (16:9) image (same folder).
     Output:  the path to the written .md file.
     """
     DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -338,7 +410,8 @@ def write_draft(ctx: dict, caption: str, events: list[dict], mode: str,
         f"# Draft post - {ctx['date']} ({mode})",
         "",
         f"**Trigger:** {trigger}  ",
-        f"**Image:** `{png_name}`  ",
+        f"**Image (feed post, 1200x1200):** `{png_name}`  ",
+        f"**Image (article cover, 1920x1080):** `{cover_name}`  ",
         f"**Regime:** {ctx['volatility_regime']} | **97.5% ES:** {ctx['es_975']:.2%}",
         "",
         "## Caption (review, then post with the image)",
@@ -360,10 +433,16 @@ def update_index() -> None:
     """Regenerate social/drafts/README.md listing drafts newest-first."""
     drafts = sorted(DRAFTS_DIR.glob("20*.md"), reverse=True)
     lines = ["# Post drafts", "",
-             "Auto-generated ready-to-post packages. Review the `.md`, attach the "
-             "matching `.png`, and post to LinkedIn.", ""]
+             "Auto-generated ready-to-post packages. Review the `.md`, then post "
+             "with the matching feed image, or use the cover image when posting "
+             "as a LinkedIn Article.", ""]
     for d in drafts:
-        lines.append(f"- **{d.stem}** - [caption]({d.name}) + [image]({d.stem}.png)")
+        cover = DRAFTS_DIR / f"{d.stem}_cover.png"
+        cover_link = (f" + [article cover]({cover.name})" if cover.exists() else "")
+        lines.append(
+            f"- **{d.stem}** - [caption]({d.name}) + "
+            f"[feed image]({d.stem}.png){cover_link}"
+        )
     lines.append("")
     (DRAFTS_DIR / "README.md").write_text("\n".join(lines), encoding="utf-8")
 
@@ -395,11 +474,14 @@ def main() -> None:
         engine.dispose()
 
     png = DRAFTS_DIR / f"{date}.png"
+    cover = DRAFTS_DIR / f"{date}_cover.png"
     render_card(ctx, hist, png)
+    render_card_wide(ctx, hist, cover)
     caption = write_caption(ctx, events, mode, backtest=backtest)
-    md = write_draft(ctx, caption, events, mode, png.name)
+    md = write_draft(ctx, caption, events, mode, png.name, cover.name)
     update_index()
-    print(f"[build_post] {date}: wrote draft ({mode}) -> {md.name} + {png.name}")
+    print(f"[build_post] {date}: wrote draft ({mode}) -> "
+          f"{md.name} + {png.name} + {cover.name}")
 
 
 if __name__ == "__main__":
