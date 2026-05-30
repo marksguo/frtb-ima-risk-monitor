@@ -88,105 +88,121 @@ def decide(events: list[dict], as_of: pd.Timestamp) -> tuple[bool, str]:
 
 
 def render_card(ctx: dict, hist: pd.DataFrame, out_png: Path) -> None:
-    """Render the branded daily risk card PNG.
+    """Render the branded daily risk card PNG at exactly 1200x1200 (square).
+
+    Square is LinkedIn-safe: the feed (mobile and desktop) and Articles never
+    crop a 1:1 image, so all stats stay visible. ``bbox_inches`` is left at its
+    default so the saved file matches the figure's native pixel dimensions
+    (12in x 12in @ 100 dpi = 1200 x 1200).
 
     Inputs:
         ctx:     daily context dict (date, es_975, regime, top_mover, ...).
         hist:    trailing ES history for the sparkline (oldest-first).
         out_png: destination path for the PNG.
-    Output:  None. Side effect: the PNG is written.
+    Output:  None. Side effect: the PNG is written at exactly 1200x1200.
     """
     regime = str(ctx["volatility_regime"]).lower()
     rcolor = REGIME_COLOR.get(regime, ACCENT)
 
-    fig = plt.figure(figsize=(12, 6.75), dpi=100)
+    fig = plt.figure(figsize=(12, 12), dpi=100)
     fig.patch.set_facecolor(BG)
 
-    # Header.
-    fig.text(0.06, 0.88, "FRTB IMA RISK MONITOR", color=ACCENT, fontsize=18,
+    # Header band: brand left, date right.
+    fig.text(0.06, 0.94, "FRTB IMA RISK MONITOR", color=ACCENT, fontsize=22,
              fontweight="bold", family="monospace")
-    fig.text(0.94, 0.88, ctx["date"], color=MUTED, fontsize=14, ha="right",
+    fig.text(0.94, 0.94, ctx["date"], color=MUTED, fontsize=16, ha="right",
              family="monospace")
 
-    # Headline metric.
-    fig.text(0.06, 0.60, "97.5% Expected Shortfall (1-day)", color=MUTED, fontsize=15)
-    fig.text(0.06, 0.42, f"{ctx['es_975']:.2%}", color=FG, fontsize=72, fontweight="bold")
+    # Headline metric: label, then the huge percentage.
+    fig.text(0.06, 0.81, "97.5% Expected Shortfall (1-day)", color=MUTED,
+             fontsize=20)
+    fig.text(0.06, 0.62, f"{ctx['es_975']:.2%}", color=FG, fontsize=110,
+             fontweight="bold")
 
     # Regime badge.
-    fig.text(0.06, 0.30, f"  {regime.upper()} REGIME  ", color=BG, fontsize=14,
+    fig.text(0.06, 0.51, f"  {regime.upper()} REGIME  ", color=BG, fontsize=18,
              fontweight="bold", family="monospace",
-             bbox=dict(boxstyle="round,pad=0.4", facecolor=rcolor, edgecolor="none"))
+             bbox=dict(boxstyle="round,pad=0.5", facecolor=rcolor,
+                       edgecolor="none"))
 
-    # Secondary stats.
-    fig.text(0.40, 0.30,
-             f"Stressed ES {ctx['es_stressed']:.2%}    "
-             f"Liquidity-adj ES {ctx['liquidity_adjusted_es']:.2%}    "
-             f"Top mover {ctx['top_mover']} {ctx['top_mover_return']:+.2f}%",
-             color=MUTED, fontsize=12)
+    # Secondary stats: a single horizontal row below the badge.
+    fig.text(0.06, 0.44,
+             f"Stressed ES  {ctx['es_stressed']:.2%}     "
+             f"Liquidity-adj ES  {ctx['liquidity_adjusted_es']:.2%}     "
+             f"Top mover  {ctx['top_mover']} {ctx['top_mover_return']:+.2f}%",
+             color=MUTED, fontsize=14)
 
-    # Sparkline of trailing ES (top-right inset).
+    # Sparkline of trailing ES, full width across the lower half.
     if len(hist) >= 2:
-        ax = fig.add_axes([0.55, 0.46, 0.39, 0.34])
-        ax.plot(hist["date"], hist["es_975"], color=ACCENT, linewidth=2)
+        ax = fig.add_axes([0.06, 0.13, 0.88, 0.23])
+        ax.plot(hist["date"], hist["es_975"], color=ACCENT, linewidth=2.5)
         ax.fill_between(hist["date"], hist["es_975"], hist["es_975"].min(),
                         color=ACCENT, alpha=0.12)
         ax.scatter([hist["date"].iloc[-1]], [hist["es_975"].iloc[-1]],
-                   color=rcolor, s=40, zorder=5)
+                   color=rcolor, s=60, zorder=5)
         ax.set_facecolor(BG)
         for s in ax.spines.values():
             s.set_visible(False)
-        ax.tick_params(colors=MUTED, labelsize=8)
+        ax.tick_params(colors=MUTED, labelsize=10)
         ax.set_xticks([])
         ax.set_title(f"97.5% ES, trailing {len(hist)} days", color=MUTED,
-                     fontsize=10, loc="left")
+                     fontsize=12, loc="left")
 
-    # Footer.
-    fig.text(0.06, 0.09,
-             f"{REPO_URL}   |   6-asset multi-class book   |   Historical Simulation, "
-             f"FRTB liquidity-horizon scaled", color=MUTED, fontsize=11,
-             family="monospace")
+    # Footer: two stacked lines so nothing clips at 1200px wide.
+    fig.text(0.06, 0.075, REPO_URL,
+             color=MUTED, fontsize=11, family="monospace")
+    fig.text(0.06, 0.04,
+             "6-asset multi-class book   |   Historical Simulation, "
+             "FRTB liquidity-horizon scaled",
+             color=MUTED, fontsize=11, family="monospace")
 
     out_png.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_png, facecolor=BG, bbox_inches="tight", pad_inches=0.3)
+    fig.savefig(out_png, facecolor=BG)
     plt.close(fig)
 
 
-# Voice spec for caption generation. Mirrors how Marks writes on LinkedIn: a
-# curious finance/stats junior showing his work, not a senior analyst. Strict
-# rules carry through to the templated fallback below.
+# Voice spec for caption generation. Mirrors how Marks writes on LinkedIn:
+# memo-style title, no jargon hand-holding, no hashtags, ends with the explainer
+# link. The strict rules carry through to the templated fallback below.
 VOICE = (
     "You are Marks Guo, a Statistics + Finance junior at the University of "
     "Rochester. You built this small FRTB IMA risk-monitoring project as a "
-    "learning exercise and ongoing recruiting signal, and you write regular "
-    "LinkedIn updates about it in your own voice. Sound like a curious student "
-    "showing his work to a classmate, NOT a senior risk analyst.\n"
+    "learning exercise and ongoing recruiting signal, and you write LinkedIn "
+    "updates about it in your own voice. The voice is first-person, direct, "
+    "confident: a junior analyst sharing a working note, NOT a tutorial.\n"
     "\n"
-    "STRICT voice rules:\n"
-    "- NEVER use em-dashes (no '--' or '—'). Use commas, periods, "
-    "parentheses, or words like 'so' / 'which' instead.\n"
-    "- No polished-analyst openers. Avoid lines like 'Markets kept risk "
-    "managers honest', 'The real story sits in...', or 'X is not decoration, "
-    "it is Y in disguise'. That voice is wrong here.\n"
-    "- Plain English first. The first time a technical term appears (FRTB, "
-    "Expected Shortfall, 'stressed regime', 'liquidity horizon', etc.), "
-    "demystify it inline with a quick casual parenthetical.\n"
-    "- Frame numbers casually. E.g., 'about 1.5%, which is roughly the cushion "
-    "a bank would have to set aside in case tomorrow goes badly' rather than "
-    "'97.5% ES of 1.56% under stress-calibrated conditions'.\n"
-    "- Friendly conversational opener like 'Quick weekly update on the FRTB "
-    "Risk Monitor:', 'Caught something interesting on the risk monitor today:', "
-    "or 'Here's what showed up this week:'.\n"
-    "- Light. Curious. First-person. Show that you understand and can explain.\n"
-    "- End with 3 to 5 relevant hashtags on their own final line. Each hashtag "
-    "MUST be a single token with no spaces inside it (write "
-    "'#QuantitativeFinance', NOT '#Quantitative Finance')."
+    "STRICT rules:\n"
+    "- NEVER use em-dashes (no '--' or '—'). Use commas, periods, parentheses, "
+    "or words like 'so' / 'which' instead.\n"
+    "- DO NOT define or explain common technical terms inline. Terms like "
+    "Expected Shortfall, FRTB, stressed regime, liquidity horizon, VaR, "
+    "Acerbi-Szekely, backtest are used directly without a parenthetical "
+    "definition. Assume the reader either knows them or will click the "
+    "explainer link at the end. One short clarifying parenthetical is OK if "
+    "it adds insight rather than a textbook definition, e.g. '(which adds "
+    "extra holding-period penalties for assets that are harder to sell "
+    "quickly)' is fine. 'Expected Shortfall (basically the average loss on "
+    "the worst days)' is NOT fine.\n"
+    "- No dramatic analyst openers. No 'Markets kept risk managers honest', "
+    "no 'The real story sits in...', no 'X is not decoration, it is Y in "
+    "disguise'.\n"
+    "- No conversational openers like 'Quick weekly update on...' or 'Caught "
+    "something interesting today...'. Start with the title line on its own, "
+    "blank line, then dive straight into the numbers.\n"
+    "- DO NOT include hashtags anywhere in the post.\n"
+    "- End the post with this exact line on its own (and nothing after it): "
+    f"'Definitions and Interpretations: {EXPLAINER_URL}'.\n"
+    "- Use ordinary text formatting, no asterisks or markdown bolding around "
+    "individual numbers."
 )
 
 
 def _format_metrics(ctx: dict, backtest: dict | None) -> str:
     """One-paragraph data block handed to Claude. All numbers are facts to use."""
+    date_pretty = ctx["as_of"].strftime("%B %d, %Y")
     lines = [
-        f"Date: {ctx['date']}",
+        f"Date (ISO): {ctx['date']}",
+        f"Date (display, use this in titles): {date_pretty}",
         f"97.5% Expected Shortfall: {ctx['es_975']:.4f} ({ctx['es_975']:.2%})",
         f"Stressed ES: {ctx['es_stressed']:.4f} ({ctx['es_stressed']:.2%})",
         f"Liquidity-adjusted ES: {ctx['liquidity_adjusted_es']:.4f} "
@@ -205,37 +221,39 @@ def _format_metrics(ctx: dict, backtest: dict | None) -> str:
 
 def _fallback_caption(ctx: dict, events: list[dict], mode: str,
                       backtest: dict | None) -> str:
-    """Templated caption when no Claude key is configured. Same voice."""
+    """Templated caption when no Claude key is configured. Same voice/format."""
+    date_pretty = ctx["as_of"].strftime("%B %d, %Y")
     if mode == "weekly":
         bt = ""
         if backtest:
-            bt = (f" The weekly model self-check (backtest) "
-                  f"{str(backtest['pass_fail']).lower()}ed.")
+            bt = (f" On the backtest side this week: "
+                  f"{str(backtest['pass_fail']).upper()}, with "
+                  f"{int(backtest['exceptions_count'])} VaR exceptions.")
         return (
-            f"Quick weekly update on the FRTB Risk Monitor:\n\n"
-            f"The portfolio's 97.5% Expected Shortfall (basically the average "
-            f"loss on a really bad day) is about {ctx['es_975']:.2%}. Stress "
-            f"the model and that jumps to {ctx['es_stressed']:.2%}; factor in "
-            f"how long it would take to actually exit the riskier positions "
-            f"(the 'liquidity horizon' thing) and you get "
-            f"{ctx['liquidity_adjusted_es']:.2%}. The market is in a "
-            f"'{ctx['volatility_regime']}' regime, and today's biggest mover "
-            f"was {ctx['top_mover']} at {ctx['top_mover_return']:+.2f}%.{bt}\n\n"
-            f"Plain-English explainer if any of the terms are new: {EXPLAINER_URL}\n\n"
-            f"#FRTB #MarketRisk #ExpectedShortfall #QuantFinance"
+            f"Weekly FRTB IMA Risk Desk Recap | Week Ending {date_pretty}\n\n"
+            f"The headline number today is a 97.5% Expected Shortfall of "
+            f"{ctx['es_975']:.2%}. Stressed ES is {ctx['es_stressed']:.2%}, "
+            f"and the liquidity-adjusted figure comes out to "
+            f"{ctx['liquidity_adjusted_es']:.2%}, so the gap from base to "
+            f"liquidity-adjusted is meaningful.\n\n"
+            f"The model is currently flagging a {ctx['volatility_regime']} "
+            f"volatility regime, which tends to push capital requirements "
+            f"higher across the board.\n\n"
+            f"Biggest mover today was {ctx['top_mover']} at "
+            f"{ctx['top_mover_return']:+.2f}%, worth watching into next week."
+            f"{bt}\n\n"
+            f"Definitions and Interpretations: {EXPLAINER_URL}"
         )
     # Event mode.
-    headline = (events[0]["headline"] if events else "Notable risk move")
+    headline = events[0]["headline"] if events else "Notable risk move today"
     return (
-        f"Quick update from the FRTB Risk Monitor: {headline.lower()}.\n\n"
-        f"Today's 97.5% Expected Shortfall (the average loss on a really bad "
-        f"day) sits at {ctx['es_975']:.2%}, stressed ES at "
-        f"{ctx['es_stressed']:.2%}, and the liquidity-adjusted figure at "
-        f"{ctx['liquidity_adjusted_es']:.2%}. The market regime is "
-        f"'{ctx['volatility_regime']}', and today's top mover was "
-        f"{ctx['top_mover']} at {ctx['top_mover_return']:+.2f}%.\n\n"
-        f"More context: {EXPLAINER_URL}\n\n"
-        f"#FRTB #MarketRisk #ExpectedShortfall #QuantFinance"
+        f"FRTB IMA Risk Desk Update | {date_pretty}\n\n"
+        f"{headline}. The 97.5% Expected Shortfall is now "
+        f"{ctx['es_975']:.2%}, with stressed ES at {ctx['es_stressed']:.2%} "
+        f"and liquidity-adjusted ES at {ctx['liquidity_adjusted_es']:.2%}. "
+        f"Market regime is {ctx['volatility_regime']}, and the day's biggest "
+        f"mover was {ctx['top_mover']} at {ctx['top_mover_return']:+.2f}%.\n\n"
+        f"Definitions and Interpretations: {EXPLAINER_URL}"
     )
 
 
@@ -260,24 +278,32 @@ def write_caption(ctx: dict, events: list[dict], mode: str,
     if mode == "weekly":
         ask = (
             "Write a 4 to 6 short-paragraph weekly LinkedIn update in this "
-            "voice. Cover, briefly: a friendly opener, today's 97.5% Expected "
-            "Shortfall and what it means in plain English, how the stressed "
-            "and liquidity-adjusted numbers compare, what regime the market is "
-            "in and what that implies, the biggest mover and one short bit of "
-            "interpretation, the backtest result if it is informative, and one "
-            "curious forward-look. Include this explainer link on its own line "
-            f"near the end: {EXPLAINER_URL}. Total length around 180 to 240 "
-            "words."
+            "voice. The first line MUST be the title, exactly in this format "
+            "(use the display date from the metrics block):\n"
+            "'Weekly FRTB IMA Risk Desk Recap | Week Ending Month DD, YYYY'\n"
+            "Leave one blank line, then dive straight into the numbers (no "
+            "'Quick weekly update' or other opener). Cover, briefly: today's "
+            "97.5% Expected Shortfall headline number, how the stressed and "
+            "liquidity-adjusted numbers compare and what that gap implies, the "
+            "regime and what it implies, the biggest mover with one short line "
+            "of interpretation, the backtest result if it is informative, and "
+            "one curious forward-look. End with the required "
+            "'Definitions and Interpretations:' line. Total length around 180 "
+            "to 240 words."
         )
     else:
         headlines = "; ".join(e["headline"] for e in events) or "a notable risk move"
         ask = (
-            "Write a punchy 3 to 5 sentence LinkedIn update in this voice "
-            f"about today's notable risk signal(s): {headlines}. Explain what "
-            "happened, give the relevant numbers casually, and add one short "
-            "line of plain-English interpretation. Optionally include the "
-            "explainer link if it would help a non-quant reader: "
-            f"{EXPLAINER_URL}. Total length around 80 to 140 words."
+            "Write a punchy LinkedIn update in this voice about today's "
+            f"notable risk signal(s): {headlines}. The first line MUST be the "
+            "title, exactly in this format (use the display date from the "
+            "metrics block):\n"
+            "'FRTB IMA Risk Desk Update | Month DD, YYYY'\n"
+            "Leave one blank line, then 3 to 5 short sentences covering what "
+            "happened, the relevant numbers, and one short line of "
+            "interpretation. End with the required "
+            "'Definitions and Interpretations:' line. Total length around 80 "
+            "to 140 words."
         )
 
     prompt = (
