@@ -404,6 +404,70 @@ def render_scenario(vol: float, klass: str, shock: float) -> "html.Div":
     ])
 
 
+def sensitivity_panel() -> "html.Div":
+    """Sensitivity panel: marginal/component VaR + a confidence/window grid.
+
+    Inputs:  none.  Output:  an html.Div (two tables side by side).
+    """
+    wide, _ = _returns_and_stress()
+    if wide is None:
+        return html.Div("Sensitivity analysis needs the return history "
+                        "(ships on the next weekly update).",
+                        style={"color": "#8b949e"})
+    from pipeline.sensitivity import marginal_component_var, parameter_grid
+
+    df, base_var = marginal_component_var(wide)
+    grid = parameter_grid(wide)
+
+    def _cell(v, **extra):
+        style = {"padding": "4px 10px", "fontFamily": "monospace", "color": TEXT}
+        style.update(extra)
+        return html.Td(v, style=style)
+
+    def _hdr(text):
+        return html.Th(text, style={"color": "#8b949e", "textAlign": "left",
+                                    "padding": "4px 10px"})
+
+    # Marginal / component VaR table.
+    mc_rows = [html.Tr([_hdr(h) for h in
+                        ["Asset", "Weight", "Marginal VaR", "Component", "Share"]])]
+    for _, r in df.iterrows():
+        hedge = r["component_var"] < 0
+        share_color = "#2ecc71" if hedge else TEXT
+        mc_rows.append(html.Tr([
+            _cell(r["ticker"], color="#8b949e"),
+            _cell(f"{r['weight']:.0%}"),
+            _cell(f"{r['marginal_var']:+.4f}"),
+            _cell(f"{r['component_var']:+.4f}"),
+            _cell(f"{r['pct_of_var']:+.1%}", color=share_color,
+                  fontWeight="bold" if hedge else "normal"),
+        ]))
+
+    # Parameter grid (VaR) table: rows = window, cols = confidence.
+    confs = sorted(grid["confidence"].unique())
+    pivot = grid.pivot(index="window", columns="confidence", values="var")
+    grid_rows = [html.Tr([_hdr("Window")] + [_hdr(f"{c:.1%}") for c in confs])]
+    for w in sorted(pivot.index):
+        grid_rows.append(html.Tr(
+            [_cell(f"{w}d", color="#8b949e")] +
+            [_cell(f"{pivot.loc[w, c]:.2%}") for c in confs]))
+
+    return html.Div([
+        html.Div(f"Today's 97.5% VaR is {base_var:.2%}. Component VaR splits it "
+                 f"across the book (negative = a hedge that lowers portfolio VaR).",
+                 style={"color": "#8b949e", "fontSize": "13px", "marginBottom": "8px"}),
+        html.Div(style={"display": "grid", "gridTemplateColumns": "1.4fr 1fr",
+                        "gap": "20px"}, children=[
+            html.Div([html.Div("Marginal & component VaR by asset",
+                               style={"color": TEXT, "marginBottom": "6px"}),
+                      html.Table(mc_rows, style={"borderCollapse": "collapse"})]),
+            html.Div([html.Div("VaR sensitivity to confidence x window",
+                               style={"color": TEXT, "marginBottom": "6px"}),
+                      html.Table(grid_rows, style={"borderCollapse": "collapse"})]),
+        ]),
+    ])
+
+
 def backtest_table():
     """Panel 4: last 8 weekly backtest results with PASS/FAIL colouring.
 
@@ -485,6 +549,11 @@ def serve_layout() -> html.Div:
                           style={"color": TEXT, "marginTop": "0"}),
                   html.Div(id="pla")],
                  style={**_panel_style, "marginTop": "16px"}),
+        # Sensitivity analysis: marginal/component VaR + parameter grid.
+        html.Div([html.H3("Sensitivity Analysis",
+                          style={"color": TEXT, "marginTop": "0"}),
+                  html.Div(id="sensitivity")],
+                 style={**_panel_style, "marginTop": "16px"}),
     ])
 
 
@@ -498,17 +567,19 @@ app.layout = serve_layout
     Output("contrib", "figure"),
     Output("backtest", "children"),
     Output("pla", "children"),
+    Output("sensitivity", "children"),
     Input("refresh", "n_intervals"),
 )
 def refresh_panels(_n):
-    """Refresh the scorecard band, the four grid panels, and the PLA panel.
+    """Refresh the scorecard band, the grid panels, PLA, and sensitivity.
 
     Inputs:  _n - the Interval tick count (unused).
     Output:  (scorecard, es_var figure, regime figure, contributions figure,
-             backtest table, pla panel).
+             backtest table, pla panel, sensitivity panel).
     """
     return (scorecard(), figure_es_var(), figure_regime(),
-            figure_contributions(), backtest_table(), pla_panel())
+            figure_contributions(), backtest_table(), pla_panel(),
+            sensitivity_panel())
 
 
 @app.callback(

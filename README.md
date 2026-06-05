@@ -11,12 +11,14 @@
 
 **Live dashboard:** https://frtb-ima-risk-monitor.onrender.com/ — interactive, served from a point-in-time data snapshot. (Free hosting tier: the first load after a period of inactivity may take ~30-60s to wake up.)
 
+**New to these concepts?** [`TEACHING.md`](TEACHING.md) explains the entire project from scratch for a reader with no finance background, defining every acronym. [`EXPLAINER.md`](EXPLAINER.md) is a shorter plain-English tour of the daily numbers.
+
 > A daily, automated FRTB Internal Models Approach risk monitor: Historical-
 > Simulation VaR / Expected Shortfall, stress calibration, liquidity-horizon
-> scaling, weekly Acerbi-Szekely backtesting, the FRTB P&L Attribution test, an
-> interactive scenario/stress lab, and Claude-generated narratives — on a
-> synthetic multi-asset trading book, served to a live Plotly Dash dashboard and
-> a PostgreSQL backend.
+> scaling, weekly Acerbi-Szekely backtesting, the FRTB P&L Attribution test,
+> marginal/component VaR sensitivity analysis, an interactive scenario/stress
+> lab, and Claude-generated narratives — on a synthetic multi-asset trading book,
+> served to a live Plotly Dash dashboard and a PostgreSQL backend.
 
 ## Contents
 
@@ -117,6 +119,14 @@ so a full recompute is ~10 ms and the dashboard sliders update live. The lab
 shows VaR, ES, stressed and liquidity-adjusted ES, the regime, and the IMA-vs-SA
 capital outcome moving together, including regime flips and changes in which
 capital approach binds.
+
+**Sensitivity analysis.** `pipeline/sensitivity.py` reports **marginal VaR**
+(how portfolio VaR moves when one position is nudged) and **component VaR**
+(each asset's additive share of today's VaR, summing back to the total via
+Euler's theorem), plus a **parameter grid** of VaR/ES across confidence levels
+and look-back windows. Component VaR can go negative, surfacing positions that
+act as hedges, and the grid shows how much the headline number depends on
+modelling choices versus the market.
 
 ## 4. How Claude Code and the Claude API Were Used
 

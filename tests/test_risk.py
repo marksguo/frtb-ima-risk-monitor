@@ -186,6 +186,34 @@ def test_pla_idiosyncratic_book_degrades_zone():
 
 
 # --------------------------------------------------------------------------
+# Sensitivity analysis (marginal / component VaR, parameter grid)
+# --------------------------------------------------------------------------
+def test_component_var_sums_to_total():
+    """Component VaR partitions the portfolio VaR (Euler additivity)."""
+    from pipeline.sensitivity import marginal_component_var
+
+    wide = _wide_returns_fixture(n=400, seed=11)
+    df, base_var = marginal_component_var(wide)
+    assert df["component_var"].sum() == pytest.approx(base_var, rel=0.05)
+    assert df["pct_of_var"].sum() == pytest.approx(1.0, abs=1e-6)
+    assert len(df) == 6
+
+
+def test_parameter_grid_monotonic_in_confidence():
+    """Higher confidence -> larger VaR; ES is never below VaR in any cell."""
+    from pipeline.sensitivity import parameter_grid
+
+    wide = _wide_returns_fixture(n=520, seed=12)
+    grid = parameter_grid(wide)
+    # ES >= VaR everywhere.
+    assert (grid["es"] >= grid["var"] - 1e-9).all()
+    # For a fixed window, VaR rises with confidence.
+    for w in grid["window"].unique():
+        sub = grid[grid["window"] == w].sort_values("confidence")
+        assert sub["var"].is_monotonic_increasing
+
+
+# --------------------------------------------------------------------------
 # Parametric (Normal) VaR / ES
 # --------------------------------------------------------------------------
 def test_parametric_matches_normal_theory():
