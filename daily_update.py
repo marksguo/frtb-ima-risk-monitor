@@ -78,11 +78,16 @@ def export_returns() -> None:
     """
     src = create_engine(f"sqlite:///{WORKING}")
     try:
+        # Stable secondary sort on ticker + fixed precision so re-running on the
+        # same history yields a byte-identical file. Without this, row order and
+        # float noise would rewrite the whole CSV every day and bloat the repo.
         df = pd.read_sql(
-            "SELECT date, ticker, daily_return FROM price_history ORDER BY date", src
+            "SELECT date, ticker, daily_return FROM price_history "
+            "ORDER BY date, ticker", src
         )
     finally:
         src.dispose()
+    df["daily_return"] = df["daily_return"].round(8)
     RETURNS_CSV.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(RETURNS_CSV, index=False)
     print(f"[daily_update] returns_history.csv written ({len(df)} rows).")
