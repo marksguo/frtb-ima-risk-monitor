@@ -9,7 +9,7 @@
 
 ![FRTB IMA Risk Monitor dashboard](assets/dashboard.png)
 
-**Live dashboard:** https://frtb-ima-risk-monitor.onrender.com/ — interactive, served from a point-in-time data snapshot. (Free hosting tier: the first load after a period of inactivity may take ~30-60s to wake up.)
+**Live dashboard:** https://frtb-ima-risk-monitor.onrender.com/, interactive, served from a point-in-time data snapshot. (Free hosting tier: the first load after a period of inactivity may take ~30-60s to wake up.)
 
 **New to these concepts?** [`TEACHING.md`](TEACHING.md) explains the entire project from scratch for a reader with no finance background, defining every acronym. [`EXPLAINER.md`](EXPLAINER.md) is a shorter plain-English tour of the daily numbers.
 
@@ -17,7 +17,7 @@
 > Simulation VaR / Expected Shortfall, stress calibration, liquidity-horizon
 > scaling, weekly Acerbi-Szekely backtesting, the FRTB P&L Attribution test,
 > marginal/component VaR sensitivity analysis, an interactive scenario/stress
-> lab, and Claude-generated narratives — on a synthetic multi-asset trading book,
+> lab, and Claude-generated narratives, on a synthetic multi-asset trading book,
 > served to a live Plotly Dash dashboard and a PostgreSQL backend.
 
 ## Contents
@@ -279,14 +279,14 @@ exactly why regulators require the extra stressed-capital buffer.
 From the first full run (data through 2026-05-27, ~19 years of history):
 
 - **Current state:** the book is in a *stressed* volatility regime. One-day
-  ES(97.5%) is **1.56%** versus VaR **1.16%** — ES exceeds VaR by ~34%, the
+  ES(97.5%) is **1.56%** versus VaR **1.16%**, ES exceeds VaR by ~34%, the
   expected tail-thickness gap that motivates FRTB's switch from VaR to ES.
 - **Stress calibration:** the stressed ES is **2.47%**, anchored to the worst
   252-day window in the full history (ES **3.38%**, the 2008-09 GFC period).
 - **Liquidity dominates capital:** the liquidity-adjusted ES is **3.36%**, about
   2.2x the unadjusted ES. The driver is TLT (rates, 60-day horizon), whose
   sqrt(60/10) = 2.45x scaling makes the least-liquid sleeve the largest capital
-  contributor — exactly the behaviour FRTB's liquidity horizons are designed to
+  contributor, exactly the behaviour FRTB's liquidity horizons are designed to
   capture.
 - **NMRF:** 0 of 6 assets flagged, as expected for liquid ETFs. The
   classification still runs daily so the infrastructure is in place.

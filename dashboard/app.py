@@ -349,6 +349,34 @@ def scenario_controls() -> "html.Div":
     ])
 
 
+def _scenario_help() -> "html.Div":
+    """A plain-language 'how to use this' box for the Scenario Lab."""
+    step = {"color": MUTED, "fontSize": "13px", "margin": "3px 0"}
+    head = {"color": MUTED, "fontSize": "11.5px", "fontWeight": "600",
+            "textTransform": "uppercase", "letterSpacing": ".05em",
+            "margin": "10px 0 4px"}
+    return html.Div([
+        html.Div("A what-if tool. You invent a market shock and every risk number "
+                 "updates instantly. None of this is a forecast. It just answers "
+                 "\"if this happened, how bad would today's risk look?\"",
+                 style={"color": TEXT, "fontSize": "13px"}),
+        html.Div("How to use it", style=head),
+        html.Div("1. Drag the volatility slider to make the market jumpier than "
+                 "today (2x means twice as choppy).", style=step),
+        html.Div("2. Pick one risk class to shock, for example emerging-market equity.",
+                 style=step),
+        html.Div("3. Set how far it moves on the spot. Negative is a drop, so -12% "
+                 "is a sudden 12% fall.", style=step),
+        html.Div("Reading the result", style=head),
+        html.Div("The table shows each risk number before your shock, after it, and "
+                 "the change. Red means risk went up. When the shock is large enough "
+                 "you will see the Regime row flip toward \"stressed\" and the Capital "
+                 "binding row switch, which is the model tipping into crisis mode.",
+                 style={"color": MUTED, "fontSize": "13px"}),
+    ], style={"backgroundColor": BG, "border": f"1px solid {BORDER}",
+              "borderRadius": "8px", "padding": "13px 15px", "marginBottom": "18px"})
+
+
 def _pct(x: float) -> str:
     return f"{x:.2%}"
 
@@ -472,9 +500,19 @@ def sensitivity_panel() -> "html.Div":
             [_cell(f"{pivot.loc[w, c]:.2%}") for c in confs]))
 
     return html.Div([
-        html.Div(f"Today's 97.5% VaR is {base_var:.2%}. Component VaR splits it "
-                 f"across the book (negative = a hedge that lowers portfolio VaR).",
-                 style={"color": "#8b949e", "fontSize": "13px", "marginBottom": "8px"}),
+        html.Div([
+            html.Div(f"Two questions about today's 97.5% VaR of {base_var:.2%}.",
+                     style={"color": TEXT, "fontSize": "13px", "marginBottom": "4px"}),
+            html.Div("Left: which assets are responsible for it. Each asset's "
+                     "share adds up to 100% of the total. A negative share (like the "
+                     "dollar) means that asset is a hedge: holding it actually lowers "
+                     "the portfolio's risk.",
+                     style={"color": MUTED, "fontSize": "12.5px", "margin": "2px 0"}),
+            html.Div("Right: how that VaR changes if you measure it at a stricter "
+                     "confidence level or over a different length of history, so you "
+                     "can see how much the number depends on those choices.",
+                     style={"color": MUTED, "fontSize": "12.5px", "margin": "2px 0"}),
+        ], style={"marginBottom": "12px"}),
         html.Div(style={"display": "grid", "gridTemplateColumns": "1.4fr 1fr",
                         "gap": "20px"}, children=[
             html.Div([html.Div("Marginal & component VaR by asset",
@@ -635,28 +673,33 @@ def serve_layout() -> html.Div:
         # ----- Zone 2: interactive exploration ------------------------------
         _section(
             "Explore the Model",
-            "Stress the book with hypothetical shocks, and see which positions own the risk.",
+            "Two hands-on tools. The Scenario Lab asks \"what if a shock hits?\". "
+            "The sensitivity panel asks \"which positions actually drive the risk?\".",
             html.Div([
-                _card(html.Div(className="grid-scenario", children=[
-                    scenario_controls(),
-                    html.Div(id="sc-output"),
-                ]), title="Scenario Lab — invent a shock, watch risk react",
+                _card(html.Div([
+                    _scenario_help(),
+                    html.Div(className="grid-scenario", children=[
+                        scenario_controls(),
+                        html.Div(id="sc-output"),
+                    ]),
+                ]), title="Scenario Lab: invent a shock, watch the risk react",
                     interactive=True),
                 html.Div(style={"height": "16px"}),
                 _card(html.Div(id="sensitivity"),
-                      title="Sensitivity Analysis — who owns the risk, and how robust is the number"),
+                      title="Sensitivity Analysis: which positions own the risk, and how robust is the number"),
             ]),
         ),
 
         # ----- Zone 3: model validation -------------------------------------
         _section(
             "Model Validation",
-            "The checks an FRTB internal model must pass to stay approved.",
+            "The checks an FRTB internal model must pass to keep using its own "
+            "numbers instead of the regulator's stricter formula.",
             html.Div(className="grid-2", children=[
                 _card(html.Div(id="pla"),
-                      title="P&L Attribution (PLA) — is the model watching the right risks?"),
+                      title="P&L Attribution (PLA): is the model watching the right risks?"),
                 _card(html.Div(id="backtest"),
-                      title="Weekly Backtest — were the predicted losses the right size?"),
+                      title="Weekly Backtest: were the predicted losses the right size?"),
             ]),
         ),
 

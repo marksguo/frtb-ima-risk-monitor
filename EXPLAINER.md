@@ -1,6 +1,6 @@
 # Plain-English Explainer
 
-*A guide to what this project is, what every number means, and how to read the daily updates — written for people who haven't seen "FRTB" or "Expected Shortfall" before.*
+*A guide to what this project is, what every number means, and how to read the daily updates, written for people who haven't seen "FRTB" or "Expected Shortfall" before.*
 
 ---
 
@@ -13,7 +13,7 @@ This is a small program that wakes up every weekday after the US market closes, 
 ## How banks think about risk
 
 Imagine you have $1,000 invested. Tomorrow your $1,000 will be worth something different: maybe $1,010, maybe $980, maybe (rarely) $850. 
-Banks have **billions** at stake, not $1,000, so post-2008 regulators force them to answer one question every single day: *"On a really bad day, how much could we lose?"* If the answer is bigger than they can comfortably absorb, they have to set aside extra cash as a safety cushion. That cushion is called **regulatory capital** — money the bank legally can't touch, just in case.
+Banks have **billions** at stake, not $1,000, so post-2008 regulators force them to answer one question every single day: *"On a really bad day, how much could we lose?"* If the answer is bigger than they can comfortably absorb, they have to set aside extra cash as a safety cushion. That cushion is called **regulatory capital**, money the bank legally can't touch, just in case.
 
 ---
 
@@ -72,11 +72,11 @@ These six together were hand-picked by me to cover most ways a portfolio can mov
 
 The daily card shows three. They build on each other, like layers of stress-testing:
 
-1. **97.5% ES** — the *base* number, calculated on the last 252 trading days (1 year). "If tomorrow is a worst-2.5% day, you lose about this much on average."
+1. **97.5% ES**, the *base* number, calculated on the last 252 trading days (1 year). "If tomorrow is a worst-2.5% day, you lose about this much on average."
 
-2. **Stressed ES** — same calculation, but using a **historically scary window** (the worst stretch in recent history, like the 2020 COVID crash). The idea: regulatory capital should hold up in *real* crises, not just calm markets. So we recompute assuming "the world looked like March 2020."
+2. **Stressed ES**, same calculation, but using a **historically scary window** (the worst stretch in recent history, like the 2020 COVID crash). The idea: regulatory capital should hold up in *real* crises, not just calm markets. So we recompute assuming "the world looked like March 2020."
 
-3. **Liquidity-adjusted ES** — stressed ES, inflated to account for the fact that **some things you can't sell in a single day**. Think about the following:
+3. **Liquidity-adjusted ES**, stressed ES, inflated to account for the fact that **some things you can't sell in a single day**. Think about the following:
    - SPY: tradeable in an hour. Liquidity horizon = **10 days** (regulator-imposed minimum).
    - HYG (junk bonds): a real fire-sale would take weeks. Liquidity horizon = **40 days**.
    - TLT (long-term Treasuries): institutional unwinds drag on. Liquidity horizon = **60 days**.
@@ -91,9 +91,9 @@ The daily card shows three. They build on each other, like layers of stress-test
 
 The system classifies every day into one of three buckets based on how *jumpy* the market has been recently (the last 20 days' realized volatility vs. its long-run average):
 
-- **Normal** — current volatility is below 80% of the long-run average. Calm waters. *(Green badge.)*
-- **Elevated** — between 80% and 130%. Choppy. *(Orange badge.)*
-- **Stressed** — above 130%. The market is being unusually wild. *(Red badge.)*
+- **Normal**, current volatility is below 80% of the long-run average. Calm waters. *(Green badge.)*
+- **Elevated**, between 80% and 130%. Choppy. *(Orange badge.)*
+- **Stressed**, above 130%. The market is being unusually wild. *(Red badge.)*
 
 The badge on the daily card is color-coded so you don't have to read text to know the situation.
 
@@ -149,13 +149,13 @@ The moment you move a slider, every headline number recomputes live: the ES, the
 
 The PNG you see in posts shows:
 
-- **"FRTB IMA RISK MONITOR"** (top-left, blue) — project name.
+- **"FRTB IMA RISK MONITOR"** (top-left, blue), project name.
 - **The date** (top-right).
-- **The huge percent number** — the day's 97.5% ES. The whole image is built so you can absorb this in one second.
-- **The colored "REGIME" pill** — red = stressed, orange = elevated, green = normal.
-- **The line chart on the right** — the 97.5% ES over the last 60 trading days, with today's dot highlighted. Lets you see the trajectory at a glance.
-- **The row of secondary stats** — stressed ES, liquidity-adjusted ES, and which asset moved the most that day. The image stands alone if someone only sees the picture.
-- **Footer** — the repo URL + the methodology.
+- **The huge percent number**, the day's 97.5% ES. The whole image is built so you can absorb this in one second.
+- **The colored "REGIME" pill**, red = stressed, orange = elevated, green = normal.
+- **The line chart on the right**, the 97.5% ES over the last 60 trading days, with today's dot highlighted. Lets you see the trajectory at a glance.
+- **The row of secondary stats**, stressed ES, liquidity-adjusted ES, and which asset moved the most that day. The image stands alone if someone only sees the picture.
+- **Footer**, the repo URL + the methodology.
 
 ---
 
@@ -166,9 +166,9 @@ Most posts will follow this rough flow:
 1. **A title** marking the post as part of an ongoing series.
 2. **The headline number** in context (today's 97.5% ES).
 3. **The three ES layers** (base → stressed → liquidity-adjusted) (This is the main FRTB story).
-4. **The regime + the day's top mover** — and what real-world story might explain it (interpreting "why" something changes)
-5. **A short educational aside** — something that teaches the concept.
-6. **A forward look** — what to watch next going forward, and any practical takeaways.
+4. **The regime + the day's top mover**, and what real-world story might explain it (interpreting "why" something changes)
+5. **A short educational aside**, something that teaches the concept.
+6. **A forward look**, what to watch next going forward, and any practical takeaways.
 7. **Hashtags.**
 
 The point of the post is not *just* the numbers but also the *interpretation*. Numbers tell you what. but the role of the post tries to tell you *why* it matters.
