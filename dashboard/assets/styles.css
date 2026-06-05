@@ -144,18 +144,24 @@ a.nav-link:hover { text-decoration: underline; }
 .VirtualizedSelectFocusedOption, .Select-option.is-focused { background-color: #1c2330 !important; }
 .Select-arrow { border-color: #8b949e transparent transparent !important; }
 
-/* ---- dcc.Slider (rc-slider) dark theme --------------------------------- */
-.rc-slider-rail { background-color: #30363d !important; }
-.rc-slider-track { background-color: #58a6ff !important; }
-.rc-slider-handle {
-    border-color: #58a6ff !important;
+/* ---- dcc.Slider (dash-slider) dark theme ------------------------------- */
+/* This Dash version renders an editable numeric input box beside each slider.
+   Hide it: the marks and the dynamic label already show the value clearly. */
+.dash-slider-container .dash-input-container,
+.dash-range-slider-input,
+.dash-slider-input { display: none !important; }
+.dash-slider-container .dash-slider-wrapper { width: 100% !important; }
+
+.dash-slider-track { background-color: #58a6ff !important; }
+.dash-slider-thumb {
     background-color: #0d1117 !important;
-    opacity: 1 !important;
+    border-color: #58a6ff !important;
 }
-.rc-slider-handle:hover,
-.rc-slider-handle:active,
-.rc-slider-handle-click-focused:focus { border-color: #79b8ff !important; box-shadow: 0 0 0 5px rgba(88, 166, 255, .2) !important; }
-.rc-slider-dot { border-color: #30363d !important; background-color: #161b22 !important; }
-.rc-slider-dot-active { border-color: #58a6ff !important; }
-.rc-slider-mark-text { color: #8b949e !important; font-family: 'JetBrains Mono', monospace; }
-.rc-slider-mark-text-active { color: #c9d1d9 !important; }
+.dash-slider-thumb:hover,
+.dash-slider-thumb:focus { box-shadow: 0 0 0 5px rgba(88, 166, 255, .2) !important; }
+.dash-slider-mark-text, .dash-slider-mark { color: #8b949e !important; font-family: 'JetBrains Mono', monospace; }
+
+/* Also keep the old rc-slider names in case the component falls back to them. */
+.rc-slider-track { background-color: #58a6ff !important; }
+.rc-slider-handle { border-color: #58a6ff !important; background-color: #0d1117 !important; }
+.rc-slider-mark-text { color: #8b949e !important; }

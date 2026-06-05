@@ -40,11 +40,9 @@ jobs:
           git config user.name "frtb-risk-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data/frtb_snapshot.sqlite DAILY_LOG.md CHANGES.md social/drafts
-          # The Scenario Lab's return history is large, so commit it weekly
-          # (Fridays) rather than daily to keep repo churn small.
-          if [ "$(date -u +%u)" = "5" ]; then
-            git add data/returns_history.csv.gz
-          fi
+          # Plain-CSV return history for the Scenario Lab: committed every run so
+          # the lab's baseline matches today; git deltas the one-row append.
+          git add data/returns_history.csv
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else

@@ -28,7 +28,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from database.db_utils import run_query
 from pipeline.config import ASSETS, TICKERS
 
-RETURNS_CSV = Path(__file__).resolve().parents[1] / "data" / "returns_history.csv.gz"
+RETURNS_CSV = Path(__file__).resolve().parents[1] / "data" / "returns_history.csv"
 REPO_URL = "https://github.com/marksguo/frtb-ima-risk-monitor"
 
 # Dark palette (GitHub-dark inspired).
@@ -50,6 +50,17 @@ pio.templates["plotly_dark"].layout.font.family = FONT
 
 # FRTB risk classes, in book order, for the Scenario Lab shock dropdown.
 RISK_CLASSES = list(dict.fromkeys(a["asset_class"] for a in ASSETS.values()))
+
+# Plain-English labels so the dropdown reads to a non-specialist. Each FRTB risk
+# class maps to the single ETF that represents it in this book.
+CLASS_LABELS = {
+    "Large cap equity": "US stocks (SPY)",
+    "Interest rates": "Long-term US bonds (TLT)",
+    "Credit (high yield)": "Risky corporate bonds (HYG)",
+    "Emerging market equity": "Emerging-market stocks (EEM)",
+    "Commodities": "Gold (GLD)",
+    "FX": "US dollar (UUP)",
+}
 
 # The interactive Scenario Lab recomputes risk from the raw return history. That
 # matrix and the stored stress-period ES are static per deploy, so cache them on
@@ -325,23 +336,21 @@ def scenario_controls() -> "html.Div":
     return html.Div([
         html.Div("Build a scenario", className="card-title"),
         html.Div([
-            html.Div("1. Volatility shock (scales the current risk window)",
-                     style=label_style),
+            html.Div(id="sc-vol-label", style=label_style),
             dcc.Slider(id="sc-vol", min=1.0, max=3.0, step=0.1, value=1.0,
-                       marks={1: "1x", 1.5: "1.5x", 2: "2x", 2.5: "2.5x", 3: "3x"},
-                       tooltip={"placement": "top", "always_visible": False}),
+                       marks={1: "1x", 1.5: "1.5x", 2: "2x", 2.5: "2.5x", 3: "3x"}),
         ], style={"marginBottom": "22px"}),
         html.Div([
-            html.Div("2. Shock one risk class", style=label_style),
+            html.Div("2. Pick one thing to shock", style=label_style),
             dcc.Dropdown(id="sc-class", className="dash-dropdown",
-                         options=[{"label": c, "value": c} for c in RISK_CLASSES],
+                         options=[{"label": CLASS_LABELS.get(c, c), "value": c}
+                                  for c in RISK_CLASSES],
                          value="Emerging market equity", clearable=False),
         ], style={"marginBottom": "22px"}),
         html.Div([
             html.Div(id="sc-shock-label", style=label_style),
             dcc.Slider(id="sc-shock", min=-0.25, max=0.10, step=0.01, value=-0.10,
-                       marks={-0.25: "-25%", -0.1: "-10%", 0: "0", 0.1: "+10%"},
-                       tooltip={"placement": "top", "always_visible": False}),
+                       marks={-0.25: "-25%", -0.1: "-10%", 0: "0", 0.1: "+10%"}),
         ]),
         html.Div("Move any control to recompute risk instantly.",
                  style={"color": MUTED, "fontSize": "12px", "marginTop": "18px",
@@ -368,10 +377,11 @@ def _scenario_help() -> "html.Div":
         html.Div("3. Set how far it moves on the spot. Negative is a drop, so -12% "
                  "is a sudden 12% fall.", style=step),
         html.Div("Reading the result", style=head),
-        html.Div("The table shows each risk number before your shock, after it, and "
-                 "the change. Red means risk went up. When the shock is large enough "
-                 "you will see the Regime row flip toward \"stressed\" and the Capital "
-                 "binding row switch, which is the model tipping into crisis mode.",
+        html.Div("The table shows each number as it is today, then under your "
+                 "scenario with an arrow for how much it moved (red up means more "
+                 "risk). When the shock is large enough the Market regime flips "
+                 "toward \"stressed\" and the Capital set by row switches, which is "
+                 "the model tipping into crisis mode.",
                  style={"color": MUTED, "fontSize": "13px"}),
     ], style={"backgroundColor": BG, "border": f"1px solid {BORDER}",
               "borderRadius": "8px", "padding": "13px 15px", "marginBottom": "18px"})
@@ -381,73 +391,94 @@ def _pct(x: float) -> str:
     return f"{x:.2%}"
 
 
+def _change_chip(base_v: float, scen_v: float) -> "html.Span":
+    """A small coloured 'how much it changed vs today' chip for a numeric row."""
+    rel = (scen_v - base_v) / base_v * 100 if base_v else 0.0
+    if abs(rel) < 0.5:
+        return html.Span("no change", style={"color": MUTED, "fontSize": "12px",
+                                             "marginLeft": "10px"})
+    up = rel > 0
+    color = ZONE_COLORS["red"] if up else ZONE_COLORS["green"]
+    arrow = "▲" if up else "▼"
+    return html.Span(f"{arrow} {abs(rel):.0f}%", style={
+        "color": color, "fontSize": "12.5px", "fontWeight": "600",
+        "marginLeft": "10px"})
+
+
 def render_scenario(vol: float, klass: str, shock: float) -> "html.Div":
-    """Compute and render the base-vs-stressed table for a scenario.
+    """Render a Today-vs-Scenario table where each scenario value carries an
+    inline change arrow showing how far it moved from today.
 
     Inputs:  vol - volatility multiplier; klass - risk class to shock;
              shock - instantaneous return shock applied to that class.
-    Output:  an html.Div with a before/after metrics table (or a placeholder).
+    Output:  an html.Div with the metrics table (or a placeholder).
     """
     from pipeline.scenario import scenario_result
 
     wide, sp = _returns_and_stress()
     if wide is None:
-        return html.Div("Scenario Lab needs price history in the snapshot "
-                        "(regenerated on the next pipeline run).",
-                        style={"color": "#8b949e"})
+        return html.Div("Scenario Lab needs the return history "
+                        "(ships on the next daily update).",
+                        style={"color": MUTED})
 
     shocks = {klass: shock} if shock else None
     res = scenario_result(wide, vol_multiplier=vol, class_shocks=shocks,
                           stress_period_es=sp)
     b, s, d = res["base"], res["stressed"], res["deltas"]
+    no_shock = (vol == 1.0 and not shocks)
 
-    def _row(label, base_v, stress_v, delta=None, flip=False):
-        cells = [
-            html.Td(label, style={"color": "#8b949e", "padding": "4px 10px"}),
-            html.Td(base_v, style={"color": TEXT, "padding": "4px 10px",
-                                   "fontFamily": "monospace"}),
-            html.Td(stress_v, style={
-                "color": ZONE_COLORS["red"] if flip else TEXT, "padding": "4px 10px",
-                "fontFamily": "monospace", "fontWeight": "bold" if flip else "normal"}),
-        ]
-        if delta is not None:
-            up = delta > 1e-9
-            color = "#e74c3c" if up else ("#2ecc71" if delta < -1e-9 else "#8b949e")
-            arrow = "▲" if up else ("▼" if delta < -1e-9 else "→")
-            cells.append(html.Td(f"{arrow} {delta:+.2%}", style={
-                "color": color, "padding": "4px 10px", "fontFamily": "monospace"}))
-        else:
-            cells.append(html.Td("", style={"padding": "4px 10px"}))
-        return html.Tr(cells)
+    label_td = {"color": MUTED, "padding": "6px 10px"}
+    today_td = {"color": TEXT, "padding": "6px 10px",
+                "fontFamily": "'JetBrains Mono', monospace"}
+    scen_td = {"padding": "6px 10px", "fontFamily": "'JetBrains Mono', monospace"}
 
-    header = html.Tr([html.Th(h, style={"color": "#8b949e", "textAlign": "left",
-                                        "padding": "4px 10px"})
-                      for h in ["Metric", "Base", "Stressed", "Change"]])
+    def _num_row(label, base_v, scen_v):
+        return html.Tr([
+            html.Td(label, style=label_td),
+            html.Td(_pct(base_v), style=today_td),
+            html.Td([html.Span(_pct(scen_v), style={"color": TEXT}),
+                     _change_chip(base_v, scen_v)], style=scen_td),
+        ])
+
+    def _cat_row(label, today_label, scen_label, changed, color):
+        chip = (html.Span("changed", style={"color": ZONE_COLORS["red"],
+                "fontSize": "12px", "marginLeft": "10px", "fontWeight": "600"})
+                if changed else
+                html.Span("no change", style={"color": MUTED, "fontSize": "12px",
+                "marginLeft": "10px"}))
+        return html.Tr([
+            html.Td(label, style=label_td),
+            html.Td(today_label, style=today_td),
+            html.Td([html.Span(scen_label, style={"color": color}), chip],
+                    style=scen_td),
+        ])
+
+    header = html.Tr([html.Th(h) for h in
+                      ["Metric", "Today", "Under your scenario"]])
     rows = [
-        _row("97.5% ES", _pct(b["es_975"]), _pct(s["es_975"]), d["es_975"]),
-        _row("97.5% VaR", _pct(b["var_975"]), _pct(s["var_975"]), d["var_975"]),
-        _row("Stressed ES", _pct(b["es_stressed"]), _pct(s["es_stressed"]),
-             d["es_stressed"]),
-        _row("Liq-adj ES", _pct(b["liquidity_adjusted_es"]),
-             _pct(s["liquidity_adjusted_es"]), d["liquidity_adjusted_es"]),
-        _row("IMA capital", _pct(b["capital"]["capital"]),
-             _pct(s["capital"]["capital"]), d["capital"]),
-        _row("Regime", b["volatility_regime"], s["volatility_regime"],
-             flip=d["regime_changed"]),
-        _row("Capital binding", b["capital"]["binding"], s["capital"]["binding"],
-             flip=d["binding_changed"]),
+        _num_row("Expected Shortfall (97.5%)", b["es_975"], s["es_975"]),
+        _num_row("Value at Risk (97.5%)", b["var_975"], s["var_975"]),
+        _num_row("Stressed ES", b["es_stressed"], s["es_stressed"]),
+        _num_row("Liquidity-adjusted ES", b["liquidity_adjusted_es"],
+                 s["liquidity_adjusted_es"]),
+        _num_row("Capital required", b["capital"]["capital"], s["capital"]["capital"]),
+        _cat_row("Market regime", b["volatility_regime"].capitalize(),
+                 s["volatility_regime"].capitalize(),
+                 d["regime_changed"], REGIME_COLORS.get(s["volatility_regime"], TEXT)),
+        _cat_row("Capital set by", b["capital"]["binding"], s["capital"]["binding"],
+                 d["binding_changed"],
+                 ZONE_COLORS["red"] if d["binding_changed"] else TEXT),
     ]
-    notes = []
-    if d["regime_changed"]:
-        notes.append(f"Regime flips {b['volatility_regime']} -> "
-                     f"{s['volatility_regime']}.")
-    if d["binding_changed"]:
-        notes.append("The binding capital approach switches under stress.")
 
+    caption = ("Move a control above to run a scenario. The right column will show "
+               "the new number and how far it moved from today."
+               if no_shock else
+               "Right column: your scenario. The arrow shows how much each number "
+               "moved from today (red ▲ = more risk).")
     return html.Div([
         html.Table([header] + rows, className="data-table"),
-        html.Div(" ".join(notes), style={"color": "#f1c40f", "fontSize": "13px",
-                                         "marginTop": "8px"}) if notes else html.Div(),
+        html.Div(caption, style={"color": MUTED, "fontSize": "12px",
+                                 "marginTop": "10px"}),
     ])
 
 
@@ -741,8 +772,20 @@ def refresh_panels(_n):
     Input("sc-shock", "value"),
 )
 def _shock_label(klass, shock):
-    """Echo the chosen directional shock in words above its slider."""
-    return f"{klass}: {shock:+.0%} instantaneous move"
+    """Echo the chosen directional shock in plain words above its slider."""
+    name = CLASS_LABELS.get(klass, klass)
+    return f"3. How far {name} moves on the spot: {shock:+.0%}"
+
+
+@app.callback(
+    Output("sc-vol-label", "children"),
+    Input("sc-vol", "value"),
+)
+def _vol_label(vol):
+    """Echo the chosen volatility multiplier in words above its slider."""
+    if vol == 1.0:
+        return "1. Make the market jumpier: 1x (same as today)"
+    return f"1. Make the market jumpier: {vol:g}x as choppy as today"
 
 
 @app.callback(

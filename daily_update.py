@@ -33,10 +33,10 @@ WORKING = ROOT / "data" / "_working.sqlite"
 SNAPSHOT = Path(os.getenv("FRTB_SNAPSHOT_PATH") or (ROOT / "data" / "frtb_snapshot.sqlite"))
 DAILY_LOG = Path(os.getenv("FRTB_DAILY_LOG") or (ROOT / "DAILY_LOG.md"))
 CHANGES = Path(os.getenv("FRTB_CHANGES") or (ROOT / "CHANGES.md"))
-# Return history for the interactive Scenario Lab. Committed weekly (a what-if
-# stress tool does not need today's exact return), so it stays out of the
-# daily snapshot churn. Gzipped CSV keeps it ~200 KB and needs no extra deps.
-RETURNS_CSV = Path(os.getenv("FRTB_RETURNS_CSV") or (ROOT / "data" / "returns_history.csv.gz"))
+# Return history for the interactive Scenario Lab. A plain CSV (not gzip) so git
+# delta-compresses the daily one-row append to almost nothing; committed every
+# run so the Scenario Lab's "today" baseline always matches the live metrics.
+RETURNS_CSV = Path(os.getenv("FRTB_RETURNS_CSV") or (ROOT / "data" / "returns_history.csv"))
 # pla_results powers the PLA panel (tiny). price_history is NOT kept here: at
 # ~29k rows it would bloat the daily-committed snapshot, so the return history
 # the Scenario Lab needs ships separately as a weekly gzipped CSV (export_returns).
@@ -70,11 +70,11 @@ def export_snapshot() -> None:
 
 
 def export_returns() -> None:
-    """Write the per-asset return history to a gzipped CSV for the Scenario Lab.
+    """Write the per-asset return history to a plain CSV for the Scenario Lab.
 
-    The hosted dashboard recomputes risk from these raw returns. It is committed
-    on a weekly cadence (see the workflow), so it never needs today's row to be
-    useful for what-if stress analysis.
+    The hosted dashboard recomputes risk from these raw returns. Stored as plain
+    CSV and committed every run so the lab's "today" baseline stays current; git
+    delta-compresses the daily append, keeping repo growth tiny.
     """
     src = create_engine(f"sqlite:///{WORKING}")
     try:
@@ -84,8 +84,8 @@ def export_returns() -> None:
     finally:
         src.dispose()
     RETURNS_CSV.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(RETURNS_CSV, index=False, compression="gzip")
-    print(f"[daily_update] returns_history.csv.gz written ({len(df)} rows).")
+    df.to_csv(RETURNS_CSV, index=False)
+    print(f"[daily_update] returns_history.csv written ({len(df)} rows).")
 
 
 def write_daily_log() -> None:
