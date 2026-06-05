@@ -143,6 +143,66 @@ def figure_contributions() -> go.Figure:
     return fig
 
 
+def scorecard() -> "html.Div":
+    """Top band of metric cards: latest value + 1d / 1w / 1m change.
+
+    Inputs:  none.
+    Output:  an html.Div row of per-metric cards (or a placeholder note).
+    """
+    from pipeline.changes import compute_changes
+
+    df = _load_metrics()
+    if df.empty:
+        return html.Div("No risk metrics yet. Run the pipeline.",
+                        style={"color": "#8b949e"})
+    result = compute_changes(df)
+    as_of = str(result["as_of"])[:10]
+
+    def _delta(label: str, change) -> "html.Div":
+        """One '1w +0.4%' line, coloured by direction (red up = more risk)."""
+        if change is None:
+            txt, color = f"{label} n/a", "#8b949e"
+        else:
+            pct = change["pct"]
+            if abs(pct) < 0.05:
+                txt, color = f"{label} flat", "#8b949e"
+            elif pct > 0:
+                txt, color = f"{label} ▲ +{pct:.1f}%", "#e74c3c"
+            else:
+                txt, color = f"{label} ▼ {pct:.1f}%", "#2ecc71"
+        return html.Div(txt, style={"color": color, "fontSize": "13px"})
+
+    cards = []
+    for row in result["rows"]:
+        latest = "n/a" if row["latest"] is None else f"{row['latest']:.2%}"
+        c = row["changes"]
+        cards.append(html.Div(style={**_panel_style, "flex": "1", "minWidth": "150px"},
+                              children=[
+            html.Div(row["label"], style={"color": "#8b949e", "fontSize": "12px"}),
+            html.Div(latest, style={"color": TEXT, "fontSize": "26px",
+                                    "fontWeight": "bold", "margin": "2px 0 6px"}),
+            _delta("1d", c["1d"]), _delta("1w", c["1w"]), _delta("1m", c["1m"]),
+        ]))
+
+    streak = result["regime_streak"]
+    regime = result["regime"]
+    cards.append(html.Div(style={**_panel_style, "flex": "1", "minWidth": "150px"},
+                          children=[
+        html.Div("Regime", style={"color": "#8b949e", "fontSize": "12px"}),
+        html.Div(regime, style={"color": REGIME_COLORS.get(regime, TEXT),
+                                "fontSize": "22px", "fontWeight": "bold",
+                                "margin": "2px 0 6px"}),
+        html.Div(f"held {streak} trading days",
+                 style={"color": "#8b949e", "fontSize": "13px"}),
+    ]))
+
+    return html.Div([
+        html.Div(f"Period change as of {as_of}  (▲ = risk rose)",
+                 style={"color": "#8b949e", "marginBottom": "8px", "fontSize": "13px"}),
+        html.Div(cards, style={"display": "flex", "gap": "12px", "flexWrap": "wrap"}),
+    ])
+
+
 def backtest_table():
     """Panel 4: last 8 weekly backtest results with PASS/FAIL colouring.
 
@@ -198,6 +258,7 @@ def serve_layout() -> html.Div:
                  style={"color": "#8b949e", "marginBottom": "16px"}),
         # 24-hour auto refresh.
         dcc.Interval(id="refresh", interval=24 * 60 * 60 * 1000, n_intervals=0),
+        html.Div(id="scorecard", style={"marginBottom": "16px"}),
         html.Div(style={"display": "grid", "gridTemplateColumns": "1fr 1fr",
                         "gap": "16px"}, children=[
             html.Div(dcc.Graph(id="es-var"), style=_panel_style),
@@ -214,6 +275,7 @@ app.layout = serve_layout
 
 
 @app.callback(
+    Output("scorecard", "children"),
     Output("es-var", "figure"),
     Output("regime", "figure"),
     Output("contrib", "figure"),
@@ -221,12 +283,14 @@ app.layout = serve_layout
     Input("refresh", "n_intervals"),
 )
 def refresh_panels(_n):
-    """Refresh all four panels from the database.
+    """Refresh the scorecard band and all four panels from the database.
 
     Inputs:  _n - the Interval tick count (unused).
-    Output:  (es_var figure, regime figure, contributions figure, backtest table).
+    Output:  (scorecard, es_var figure, regime figure, contributions figure,
+             backtest table).
     """
-    return figure_es_var(), figure_regime(), figure_contributions(), backtest_table()
+    return (scorecard(), figure_es_var(), figure_regime(),
+            figure_contributions(), backtest_table())
 
 
 if __name__ == "__main__":

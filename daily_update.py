@@ -11,8 +11,10 @@ Steps:
   3. export_snapshot        - copy the 3 dashboard tables into the committed
                               snapshot (keeps it small; dashboard reads only these).
   4. write_daily_log        - regenerate DAILY_LOG.md from the latest 30 days.
+  5. write_changes          - regenerate CHANGES.md: 1d/1w/1m metric deltas.
 
-The workflow commits the snapshot, DAILY_LOG.md, and any new drafts, then pushes;
+The workflow commits the snapshot, DAILY_LOG.md, CHANGES.md, and any new drafts,
+then pushes;
 that push triggers the Render redeploy so the public dashboard refreshes.
 """
 
@@ -30,8 +32,12 @@ WORKING = ROOT / "data" / "_working.sqlite"
 # files in tests without touching the committed snapshot / log.
 SNAPSHOT = Path(os.getenv("FRTB_SNAPSHOT_PATH") or (ROOT / "data" / "frtb_snapshot.sqlite"))
 DAILY_LOG = Path(os.getenv("FRTB_DAILY_LOG") or (ROOT / "DAILY_LOG.md"))
+CHANGES = Path(os.getenv("FRTB_CHANGES") or (ROOT / "CHANGES.md"))
 DASHBOARD_TABLES = ["daily_risk_metrics", "asset_risk", "backtest_results"]
 LOG_DAYS = 30
+# Lookback window (calendar days) loaded for the change scorecard; >30 so the
+# 1-month comparison row is always present even across long market gaps.
+CHANGES_DAYS = 45
 
 
 def export_snapshot() -> None:
@@ -87,6 +93,24 @@ def write_daily_log() -> None:
     print(f"[daily_update] DAILY_LOG.md regenerated ({len(metrics)} rows).")
 
 
+def write_changes() -> None:
+    """Regenerate CHANGES.md: 1d/1w/1m deltas on the headline risk metrics."""
+    from pipeline.changes import compute_changes, to_markdown
+
+    eng = create_engine(f"sqlite:///{WORKING}")
+    try:
+        metrics = pd.read_sql(
+            "SELECT date, var_975, es_975, es_stressed, liquidity_adjusted_es, "
+            "volatility_regime FROM daily_risk_metrics "
+            f"ORDER BY date DESC LIMIT {CHANGES_DAYS}", eng,
+        )
+    finally:
+        eng.dispose()
+    metrics["date"] = pd.to_datetime(metrics["date"])
+    CHANGES.write_text(to_markdown(compute_changes(metrics)), encoding="utf-8")
+    print(f"[daily_update] CHANGES.md regenerated ({len(metrics)} rows scanned).")
+
+
 def main() -> None:
     """Run the full daily update against an ephemeral SQLite working DB."""
     os.environ["FRTB_SQLITE_PATH"] = str(WORKING)
@@ -101,6 +125,7 @@ def main() -> None:
 
     export_snapshot()
     write_daily_log()
+    write_changes()
     print("[daily_update] done.")
 
 

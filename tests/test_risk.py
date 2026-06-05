@@ -38,6 +38,53 @@ def test_historical_es_ge_var():
 
 
 # --------------------------------------------------------------------------
+# Change scorecard (1d / 1w / 1m deltas)
+# --------------------------------------------------------------------------
+def _scorecard_frame():
+    """40 daily rows where es_975 rises 0.01 -> 0.02 linearly; others constant."""
+    dates = pd.date_range("2026-01-01", periods=40, freq="D")
+    es = np.linspace(0.01, 0.02, 40)
+    return pd.DataFrame({
+        "date": dates,
+        "es_975": es,
+        "var_975": es * 0.8,
+        "es_stressed": es * 1.3,
+        "liquidity_adjusted_es": es * 1.5,
+        "volatility_regime": ["normal"] * 20 + ["stressed"] * 20,
+    })
+
+
+def test_compute_changes_directions_and_pct():
+    """1d/1w/1m changes are positive on a rising series and pct math is right."""
+    from pipeline.changes import compute_changes
+
+    res = compute_changes(_scorecard_frame())
+    es_row = next(r for r in res["rows"] if r["key"] == "es_975")
+    latest = es_row["latest"]
+    assert latest == pytest.approx(0.02, abs=1e-9)
+    # 7 calendar days back on a daily series == 7 rows earlier.
+    step = (0.02 - 0.01) / 39
+    prev_1w = latest - 7 * step
+    assert es_row["changes"]["1w"]["pct"] == pytest.approx(
+        (latest - prev_1w) / prev_1w * 100, rel=1e-6)
+    assert all(es_row["changes"][p]["pct"] > 0 for p in ("1d", "1w", "1m"))
+
+
+def test_compute_changes_regime_streak_and_empty():
+    """Regime streak counts the trailing run; empty frame degrades gracefully."""
+    from pipeline.changes import compute_changes
+
+    res = compute_changes(_scorecard_frame())
+    assert res["regime"] == "stressed"
+    assert res["regime_streak"] == 20
+
+    empty = compute_changes(pd.DataFrame(
+        columns=["date", "es_975", "var_975", "es_stressed",
+                 "liquidity_adjusted_es", "volatility_regime"]))
+    assert empty["rows"] == [] and empty["as_of"] is None
+
+
+# --------------------------------------------------------------------------
 # Parametric (Normal) VaR / ES
 # --------------------------------------------------------------------------
 def test_parametric_matches_normal_theory():
