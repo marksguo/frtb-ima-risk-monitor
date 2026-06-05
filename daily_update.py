@@ -33,7 +33,15 @@ WORKING = ROOT / "data" / "_working.sqlite"
 SNAPSHOT = Path(os.getenv("FRTB_SNAPSHOT_PATH") or (ROOT / "data" / "frtb_snapshot.sqlite"))
 DAILY_LOG = Path(os.getenv("FRTB_DAILY_LOG") or (ROOT / "DAILY_LOG.md"))
 CHANGES = Path(os.getenv("FRTB_CHANGES") or (ROOT / "CHANGES.md"))
-DASHBOARD_TABLES = ["daily_risk_metrics", "asset_risk", "backtest_results"]
+# Return history for the interactive Scenario Lab. Committed weekly (a what-if
+# stress tool does not need today's exact return), so it stays out of the
+# daily snapshot churn. Gzipped CSV keeps it ~200 KB and needs no extra deps.
+RETURNS_CSV = Path(os.getenv("FRTB_RETURNS_CSV") or (ROOT / "data" / "returns_history.csv.gz"))
+# pla_results powers the PLA panel (tiny). price_history is NOT kept here: at
+# ~29k rows it would bloat the daily-committed snapshot, so the return history
+# the Scenario Lab needs ships separately as a weekly gzipped CSV (export_returns).
+DASHBOARD_TABLES = ["daily_risk_metrics", "asset_risk", "backtest_results",
+                    "pla_results"]
 LOG_DAYS = 30
 # Lookback window (calendar days) loaded for the change scorecard; >30 so the
 # 1-month comparison row is always present even across long market gaps.
@@ -43,8 +51,9 @@ CHANGES_DAYS = 45
 def export_snapshot() -> None:
     """Copy the dashboard tables from the working DB into the committed snapshot.
 
-    Rebuilds the snapshot fresh so it holds only the three tables the hosted
-    dashboard reads (no bulky price_history), keeping the committed file small.
+    Rebuilds the snapshot fresh so it holds only the tables the hosted dashboard
+    reads, keeping the committed file small. price_history is included so the
+    interactive Scenario Lab can recompute risk from raw returns.
     """
     src = create_engine(f"sqlite:///{WORKING}")
     if SNAPSHOT.exists():
@@ -58,6 +67,25 @@ def export_snapshot() -> None:
         src.dispose()
         dst.dispose()
     print(f"[daily_update] snapshot refreshed: {', '.join(DASHBOARD_TABLES)}")
+
+
+def export_returns() -> None:
+    """Write the per-asset return history to a gzipped CSV for the Scenario Lab.
+
+    The hosted dashboard recomputes risk from these raw returns. It is committed
+    on a weekly cadence (see the workflow), so it never needs today's row to be
+    useful for what-if stress analysis.
+    """
+    src = create_engine(f"sqlite:///{WORKING}")
+    try:
+        df = pd.read_sql(
+            "SELECT date, ticker, daily_return FROM price_history ORDER BY date", src
+        )
+    finally:
+        src.dispose()
+    RETURNS_CSV.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(RETURNS_CSV, index=False, compression="gzip")
+    print(f"[daily_update] returns_history.csv.gz written ({len(df)} rows).")
 
 
 def write_daily_log() -> None:
@@ -124,6 +152,7 @@ def main() -> None:
     build_post.main()
 
     export_snapshot()
+    export_returns()
     write_daily_log()
     write_changes()
     print("[daily_update] done.")

@@ -99,3 +99,22 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_date ON events (date);
+
+-- ---------------------------------------------------------------------------
+-- Table 6: pla_results - FRTB P&L Attribution test, one row per Friday.
+-- Spearman correlation and KS statistic of RTPL vs HPL over the rolling
+-- observation window, with each metric's zone and the desk's overall zone.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pla_results (
+    id             SERIAL PRIMARY KEY,
+    as_of_date     DATE NOT NULL UNIQUE,
+    spearman       NUMERIC(10,6),      -- rank correlation of RTPL vs HPL
+    ks_stat        NUMERIC(10,6),      -- Kolmogorov-Smirnov distance
+    spearman_zone  VARCHAR(10),        -- green / amber / red
+    ks_zone        VARCHAR(10),        -- green / amber / red
+    zone           VARCHAR(10),        -- overall desk zone (worse of the two)
+    n_obs          INTEGER,            -- observations in the window
+    created_at     TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pla_results_date ON pla_results (as_of_date);

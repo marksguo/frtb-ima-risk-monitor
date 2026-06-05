@@ -44,3 +44,26 @@ REGIME_ELEVATED_MAX = 1.3      # 0.8..1.3 * hist_avg          -> 'elevated', els
 
 # Acerbi-Szekely backtest threshold: Z2 below this fails.
 BACKTEST_FAIL_THRESHOLD = -0.2
+
+# ---------------------------------------------------------------------------
+# P&L Attribution (PLA) test (FRTB MAR32.16).
+# The risk model is represented by a reduced factor set (the systematic factors
+# it retains); RTPL is the P&L explained by those factors, HPL is the full-
+# revaluation P&L. The two FRTB metrics over a rolling observation window decide
+# the desk's traffic-light zone.
+# ---------------------------------------------------------------------------
+PLA_OBS_WINDOW = 250                  # observation window (~12 months) in days
+PLA_FACTOR_TICKERS = ["SPY", "TLT"]   # systematic risk factors the model keeps
+# Spearman correlation zones (higher is better): >= green -> green, >= amber -> amber.
+PLA_SPEARMAN_GREEN = 0.80
+PLA_SPEARMAN_AMBER = 0.70
+# Kolmogorov-Smirnov zones (lower is better): < green -> green, < amber -> amber.
+PLA_KS_GREEN = 0.09
+PLA_KS_AMBER = 0.12
+
+# ---------------------------------------------------------------------------
+# Scenario / stress lab. The interactive dashboard recomputes risk under a
+# user-chosen volatility shock (applied to the current risk window) plus
+# instantaneous directional shocks by FRTB risk class.
+# ---------------------------------------------------------------------------
+SCENARIO_STRESS_WINDOW = VAR_WINDOW   # the recent window whose vol is scaled

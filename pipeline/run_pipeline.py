@@ -6,7 +6,8 @@ Runs the full daily workflow in order:
     2. calculate_risk    - VaR / ES / stress / liquidity / regime
     3. nmrf_checker      - NMRF classification flags
     4. backtest          - Acerbi-Szekely weekly backtest (Fridays, or first run)
-    5. generate_summary  - daily one-liner; weekly narrative on Fridays
+    5. pla               - FRTB P&L Attribution test (Spearman + KS, by Friday)
+    6. generate_summary  - daily one-liner; weekly narrative on Fridays
 
 Every step is wrapped so one failure is logged and never crashes the run
 silently. All output is timestamped and appended to outputs/pipeline_log.txt
@@ -39,7 +40,7 @@ from database.db_utils import (
     create_database, init_schema, get_engine, run_query, _is_sqlite,
 )
 from pipeline import (
-    fetch_prices, calculate_risk, nmrf_checker, backtest, event_detector,
+    fetch_prices, calculate_risk, nmrf_checker, backtest, event_detector, pla,
 )
 from narrative import generate_summary
 
@@ -145,6 +146,8 @@ def main() -> None:
             ran_backtest = _run_step(logger, "backtest", backtest.main, critical=False)
         else:
             logger.info("SKIP  backtest (not Friday and results already exist)")
+
+        _run_step(logger, "pla", pla.main, critical=False)
 
         _run_step(logger, "event_detector", event_detector.main, critical=False)
 

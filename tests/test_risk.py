@@ -85,6 +85,107 @@ def test_compute_changes_regime_streak_and_empty():
 
 
 # --------------------------------------------------------------------------
+# Scenario / stress engine
+# --------------------------------------------------------------------------
+def _wide_returns_fixture(n=400, seed=1):
+    """A realistic-ish wide return matrix for the six-asset book."""
+    from pipeline.config import TICKERS
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2023-01-02", periods=n)
+    data = {t: rng.normal(0.0003, 0.01, n) for t in TICKERS}
+    return pd.DataFrame(data, index=dates)[TICKERS]
+
+
+def test_vol_multiplier_raises_tail_risk():
+    """Scaling the current window's volatility increases VaR and ES."""
+    from pipeline.scenario import recompute_latest, apply_shock
+
+    wide = _wide_returns_fixture()
+    base = recompute_latest(wide)
+    stressed = recompute_latest(apply_shock(wide, vol_multiplier=2.0))
+    assert stressed["es_975"] > base["es_975"]
+    assert stressed["var_975"] > base["var_975"]
+
+
+def test_class_shock_appends_day_and_lifts_es():
+    """A negative directional class shock adds a tail day and raises ES/capital."""
+    from pipeline.scenario import scenario_result
+
+    wide = _wide_returns_fixture()
+    res = scenario_result(wide, vol_multiplier=1.0,
+                          class_shocks={"Emerging market equity": -0.15})
+    assert res["deltas"]["es_975"] > 0
+    # IMA capital is monotonic in stressed ES, so it should not fall.
+    assert res["stressed"]["capital"]["capital"] >= res["base"]["capital"]["capital"]
+
+
+def test_no_shock_is_identity():
+    """vol_multiplier=1 and no class shock leaves the metrics unchanged."""
+    from pipeline.scenario import scenario_result
+
+    wide = _wide_returns_fixture()
+    res = scenario_result(wide, vol_multiplier=1.0, class_shocks=None)
+    for k in ["var_975", "es_975", "es_stressed", "liquidity_adjusted_es"]:
+        assert res["deltas"][k] == pytest.approx(0.0, abs=1e-12)
+
+
+# --------------------------------------------------------------------------
+# FRTB P&L Attribution (PLA) test
+# --------------------------------------------------------------------------
+def test_pla_perfect_when_factors_span_book():
+    """If every asset IS a retained factor, RTPL == HPL -> green zone."""
+    from pipeline import pla
+
+    rng = np.random.default_rng(3)
+    dates = pd.bdate_range("2023-01-02", periods=260)
+    # Book of just the two factors: the factor model spans it exactly.
+    wide = pd.DataFrame(
+        {"SPY": rng.normal(0, 0.01, 260), "TLT": rng.normal(0, 0.008, 260)},
+        index=dates,
+    )
+    hpl, rtpl = pla.factor_pnl(wide, factor_tickers=["SPY", "TLT"])
+    # The fitted RTPL reproduces each asset return to machine precision, so HPL
+    # and RTPL coincide: rank correlation 1 and a KS distance deep in green.
+    assert np.allclose(hpl.to_numpy(), rtpl.to_numpy(), atol=1e-9)
+    assert pla.spearman_corr(hpl, rtpl) == pytest.approx(1.0, abs=1e-9)
+    assert pla.ks_stat(hpl, rtpl) < pla.PLA_KS_GREEN
+    assert pla.zone_spearman(pla.spearman_corr(hpl, rtpl)) == "green"
+
+
+def test_pla_zone_thresholds():
+    """Zone mapping follows the MAR32.16 thresholds and worst-of rule."""
+    from pipeline import pla
+
+    assert pla.zone_spearman(0.85) == "green"
+    assert pla.zone_spearman(0.75) == "amber"
+    assert pla.zone_spearman(0.60) == "red"
+    assert pla.zone_ks(0.05) == "green"
+    assert pla.zone_ks(0.10) == "amber"
+    assert pla.zone_ks(0.20) == "red"
+    # Overall zone is the worse of the two.
+    assert pla.overall_zone("green", "amber") == "amber"
+    assert pla.overall_zone("amber", "red") == "red"
+    assert pla.overall_zone("green", "green") == "green"
+
+
+def test_pla_idiosyncratic_book_degrades_zone():
+    """A book dominated by a factor-orthogonal asset should not be green."""
+    from pipeline import pla
+    from pipeline.config import TICKERS
+
+    rng = np.random.default_rng(7)
+    dates = pd.bdate_range("2022-01-03", periods=260)
+    data = {t: rng.normal(0, 0.004, 260) for t in TICKERS}
+    # GLD gets large idiosyncratic moves uncorrelated with SPY/TLT.
+    data["GLD"] = rng.normal(0, 0.03, 260)
+    wide = pd.DataFrame(data, index=dates)[TICKERS]
+    result = pla.compute_pla(wide)
+    assert result["zone"] in {"green", "amber", "red"}
+    assert 0.0 <= result["ks_stat"] <= 1.0
+    assert result["n_obs"] == 260
+
+
+# --------------------------------------------------------------------------
 # Parametric (Normal) VaR / ES
 # --------------------------------------------------------------------------
 def test_parametric_matches_normal_theory():

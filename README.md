@@ -13,9 +13,10 @@
 
 > A daily, automated FRTB Internal Models Approach risk monitor: Historical-
 > Simulation VaR / Expected Shortfall, stress calibration, liquidity-horizon
-> scaling, weekly Acerbi-Szekely backtesting, and Claude-generated narratives —
-> on a synthetic multi-asset trading book, served to a live Plotly Dash
-> dashboard and a PostgreSQL backend.
+> scaling, weekly Acerbi-Szekely backtesting, the FRTB P&L Attribution test, an
+> interactive scenario/stress lab, and Claude-generated narratives — on a
+> synthetic multi-asset trading book, served to a live Plotly Dash dashboard and
+> a PostgreSQL backend.
 
 ## Contents
 
@@ -94,6 +95,29 @@ an approximate IMA capital charge (multiplier x liquidity-adjusted stressed ES),
 with the Basel III **output floor** applied: final capital = max(IMA, 72.5% x SA)
 (`pipeline/capital.py`). This shows which approach binds.
 
+**P&L Attribution (PLA) test.** A required IMA-eligibility gate (FRTB MAR32.16),
+implemented in `pipeline/pla.py`. Over a rolling 250-day window it compares the
+desk's **Hypothetical P&L** (the full-revaluation book return) against a
+**Risk-Theoretical P&L** built only from the risk factors the model retains
+(equity and rates, via an in-window OLS projection). Two statistics - the
+**Spearman** rank correlation and the **Kolmogorov-Smirnov** distance between the
+two P&L distributions - map to a green / amber / red traffic light, with the
+desk's zone the worse of the two: green keeps IMA, amber adds a capital
+surcharge, red forces the Standardised Approach. The factor-projection RTPL is a
+synthetic stand-in for a bank's pricing-engine RTPL; it reproduces the mechanism
+the test polices (omitted or approximated risk factors widen the gap) rather than
+an exact regulatory number.
+
+**Interactive scenario lab.** `pipeline/scenario.py` recomputes the full metric
+set under a user-chosen stress: a volatility multiplier applied to the current
+risk window, plus instantaneous directional shocks by FRTB risk class (appended
+as a hypothetical scenario day). Only the latest date is evaluated
+(trailing-window quantiles, with the historical stress level read from storage),
+so a full recompute is ~10 ms and the dashboard sliders update live. The lab
+shows VaR, ES, stressed and liquidity-adjusted ES, the regime, and the IMA-vs-SA
+capital outcome moving together, including regime flips and changes in which
+capital approach binds.
+
 ## 4. How Claude Code and the Claude API Were Used
 
 **Claude Code (architecture and implementation).** Used to design the module
@@ -136,13 +160,15 @@ flowchart LR
     FETCH --> CALC["calculate_risk"]
     CALC --> NMRF["nmrf_checker"]
     NMRF --> BT["backtest<br/>Acerbi-Szekely"]
-    BT --> NARR["generate_summary<br/>Claude API"]
+    BT --> PLA["pla<br/>P&L Attribution"]
+    PLA --> NARR["generate_summary<br/>Claude API"]
     FETCH --> DB[("PostgreSQL: frtb_monitor")]
     CALC --> DB
     NMRF --> DB
     BT --> DB
+    PLA --> DB
     NARR --> DB
-    DB --> DASH["Plotly Dash<br/>localhost:8050"]
+    DB --> DASH["Plotly Dash<br/>scenario lab + PLA + panels"]
     NARR --> LI["LinkedIn posts"]
 ```
 
@@ -280,12 +306,19 @@ deliberate, and each is a direction for further work.
   the Filtered (EWMA) HS in the notebook raise the pass rate?*
 - **NMRF is a flag, not a charge.** *Open question: how to translate
   non-modellability into the Stressed-ES add-on the rules require?*
-- **No P&L Attribution (PLA) test.** FRTB-IMA desk eligibility requires PLA
-  (Spearman + KS between front-office and risk-theoretical P&L). *Open question:
-  would these desks qualify for IMA?*
+- **PLA uses a proxy RTPL.** The P&L Attribution test (`pipeline/pla.py`) is
+  implemented, but the Risk-Theoretical P&L is a reduced-factor (equity + rates)
+  OLS projection rather than a pricing-engine output. *Open question: how would a
+  richer retained-factor set move the desk between the amber and green zones?*
 - **Synthetic, equal-weight, linear book** - no dynamic positions, options, or
   cross-asset tail dependence (copulas). *Open question: how would non-linear
   payoffs and joint tail risk change the numbers?*
+- **Some institutional features are intentionally out of scope**, because the
+  book does not warrant them: **option Greeks** (the six ETF positions are
+  linear, so there is no vega/gamma to report), **counterparty/credit exposure**
+  (this is a market-risk trading book, not a derivatives counterparty portfolio),
+  and **true intraday/real-time risk** (a daily monitor does not need it). Each
+  is a deliberate scoping choice, not an oversight.
 
 ## Methodology Notebook
 

@@ -109,6 +109,42 @@ A FAIL is a big deal in real banking since it means the bank's internal model is
 
 ---
 
+## The P&L Attribution (PLA) test
+
+The backtest checks whether my risk numbers were *big enough*. The PLA test checks something different: whether my risk model is even looking at the *right things* in the first place.
+
+Here is the idea. There are two ways to measure how the portfolio actually made or lost money on a given day:
+
+- **The full, true answer (HPL):** take every one of the six holdings and add up exactly what each did. Nothing left out.
+- **The model's shorthand answer (RTPL):** my risk model does not track all six holdings in full detail. It represents the book with a smaller set of core "risk factors" (here, the stock market and interest rates). RTPL is the P&L you get from *just* those factors.
+
+If the shorthand closely matches the full truth, my model is capturing what really drives the book, and the risk numbers can be trusted. If the two drift apart, the model is missing something. For this book, gold and the dollar do not move with stocks or rates, so they are the usual culprits.
+
+The test grades that match and hands the desk a traffic light:
+
+- **Green:** the model tracks reality well. It stays approved.
+- **Amber:** good but not great. The bank can keep using it but has to hold extra capital as a penalty.
+- **Red:** the model and reality have parted ways. The desk loses approval and gets bumped to the simpler, more punitive Standardised Approach.
+
+Same stakes as the backtest, just policing a different failure. A model can predict loss sizes fine (pass the backtest) while still watching the wrong risk factors (fail PLA), which is exactly why regulators require both.
+
+*(One honesty note: a real bank's RTPL comes straight out of its pricing engines. Mine is a simplified stand-in built by fitting the book to those two core factors, so it shows the mechanism the test polices rather than a bank's exact internal number.)*
+
+---
+
+## The Scenario Lab (the interactive part)
+
+Everything above tells you where risk sits *today*. The Scenario Lab lets you ask "what if" and watch the numbers move.
+
+It has two knobs:
+
+1. **A volatility dial.** Crank market choppiness up, for example "what if the market got twice as jumpy as it is right now."
+2. **A shock to one type of asset.** Pick a risk class (emerging-market stocks, gold, credit, and so on) and drop it on the spot, for example "emerging markets fall 12% overnight."
+
+The moment you move a slider, every headline number recomputes live: the ES, the VaR, the stressed and liquidity-adjusted numbers, the capital, and even the regime light. So you can watch a big enough shock flip the regime from orange to red, or push capital up off its floor. It turns a static report into something you can actually poke at and learn from.
+
+---
+
 ## How to read the daily image card
 
 The PNG you see in posts shows:
