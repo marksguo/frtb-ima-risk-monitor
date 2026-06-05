@@ -5,7 +5,8 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 
 | Date | 97.5% ES | Regime | Notable |
 |------|----------|--------|---------|
-| 2026-06-04 | 1.56% | elevated | Volatility regime shifted: stressed -> elevated |
+| 2026-06-05 | 1.69% | stressed | Volatility regime shifted: elevated -> stressed; Weekly ES backtest breached (Acerbi-Szekely) |
+| 2026-06-04 | 1.56% | elevated | - |
 | 2026-06-03 | 1.56% | stressed | - |
 | 2026-06-02 | 1.56% | stressed | - |
 | 2026-06-01 | 1.56% | stressed | - |
@@ -34,4 +35,3 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 | 2026-04-28 | 1.52% | stressed | - |
 | 2026-04-27 | 1.52% | stressed | - |
 | 2026-04-24 | 1.52% | stressed | - |
-| 2026-04-23 | 1.52% | stressed | - |
