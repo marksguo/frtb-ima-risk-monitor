@@ -1,0 +1,161 @@
+/* FRTB IMA Risk Monitor - dashboard theme.
+   Dark "quant terminal" aesthetic: Inter for prose, JetBrains Mono for numbers,
+   soft-bordered cards that lift on hover, dark-themed Dash controls, and a
+   responsive grid that collapses to one column on narrow screens. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #0d1117;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.mono {
+    font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+}
+
+/* ---- Cards -------------------------------------------------------------- */
+.card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 18px;
+    transition: border-color .15s ease, box-shadow .18s ease, transform .15s ease;
+}
+.card:hover {
+    border-color: #3d444d;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .38);
+}
+.metric-card:hover {
+    transform: translateY(-3px);
+    border-color: #58a6ff66;
+}
+
+/* ---- Section headers ---------------------------------------------------- */
+.section-title {
+    font-size: 19px;
+    font-weight: 700;
+    color: #e6edf3;
+    letter-spacing: .01em;
+}
+.section-sub {
+    color: #8b949e;
+    font-size: 13.5px;
+    margin-top: 3px;
+}
+.section-rule {
+    height: 1px;
+    background: linear-gradient(90deg, #30363d, rgba(48, 54, 61, 0));
+    margin: 10px 0 18px;
+}
+.card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e6edf3;
+    margin: 0 0 10px;
+}
+
+/* ---- Responsive grids --------------------------------------------------- */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+.grid-scenario {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 24px;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .grid-2, .grid-scenario { grid-template-columns: 1fr; }
+}
+
+/* ---- Tables ------------------------------------------------------------- */
+table.data-table { width: 100%; border-collapse: collapse; }
+table.data-table th {
+    color: #8b949e;
+    font-weight: 600;
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid #30363d;
+    font-size: 12.5px;
+}
+table.data-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #21262d;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+}
+table.data-table tbody tr:hover td,
+table.data-table tr:hover td { background: #1c2330; }
+
+/* ---- Badges & status ---------------------------------------------------- */
+.badge {
+    padding: 2px 11px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: .03em;
+}
+.live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #2ecc71;
+    display: inline-block;
+    animation: pulse 2.2s infinite;
+}
+@keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(46, 204, 113, .55); }
+    70%  { box-shadow: 0 0 0 7px rgba(46, 204, 113, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+}
+a.nav-link { color: #58a6ff; text-decoration: none; font-size: 13px; }
+a.nav-link:hover { text-decoration: underline; }
+
+/* ---- Custom scrollbars -------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0d1117; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+/* ---- dcc.Dropdown (react-select v1) dark theme ------------------------- */
+.Select-control,
+.Select.is-focused:not(.is-open) > .Select-control {
+    background-color: #0d1117 !important;
+    border-color: #30363d !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+}
+.Select-control:hover { border-color: #58a6ff !important; }
+.Select-menu-outer {
+    background-color: #161b22 !important;
+    border: 1px solid #30363d !important;
+    border-radius: 8px !important;
+}
+.Select-value-label, .VirtualizedSelectOption, .Select-option {
+    color: #e6edf3 !important;
+    background-color: transparent !important;
+}
+.Select-placeholder, .Select--single > .Select-control .Select-value { color: #e6edf3 !important; }
+.VirtualizedSelectFocusedOption, .Select-option.is-focused { background-color: #1c2330 !important; }
+.Select-arrow { border-color: #8b949e transparent transparent !important; }
+
+/* ---- dcc.Slider (rc-slider) dark theme --------------------------------- */
+.rc-slider-rail { background-color: #30363d !important; }
+.rc-slider-track { background-color: #58a6ff !important; }
+.rc-slider-handle {
+    border-color: #58a6ff !important;
+    background-color: #0d1117 !important;
+    opacity: 1 !important;
+}
+.rc-slider-handle:hover,
+.rc-slider-handle:active,
+.rc-slider-handle-click-focused:focus { border-color: #79b8ff !important; box-shadow: 0 0 0 5px rgba(88, 166, 255, .2) !important; }
+.rc-slider-dot { border-color: #30363d !important; background-color: #161b22 !important; }
+.rc-slider-dot-active { border-color: #58a6ff !important; }
+.rc-slider-mark-text { color: #8b949e !important; font-family: 'JetBrains Mono', monospace; }
+.rc-slider-mark-text-active { color: #c9d1d9 !important; }

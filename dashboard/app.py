@@ -1,15 +1,16 @@
 """FRTB IMA Risk Monitor - Plotly Dash dashboard.
 
-A single-page, dark "quant terminal" dashboard with four panels:
+A single-page, dark "quant terminal" dashboard organised into three zones:
 
-  1. ES vs VaR over the last 252 trading days (dual line).
-  2. Volatility regime: ES line over a regime-coloured background
-     (green = normal, amber = elevated, red = stressed).
-  3. Today's per-asset ES contribution (bar).
-  4. Last 8 weekly Acerbi-Szekely backtest results (PASS green / FAIL red).
+  * Today's Risk      - the change scorecard, ES vs VaR, the regime overlay, and
+                        per-asset ES contributions.
+  * Explore the Model - the interactive Scenario Lab (live stress testing) and
+                        the sensitivity panel (marginal/component VaR + a grid).
+  * Model Validation  - the FRTB P&L Attribution test and the weekly backtest.
 
-Data is read live from PostgreSQL on every refresh. The page refreshes itself
-every 24 hours via a dcc.Interval. Run with: python dashboard/app.py -> :8050.
+Styling lives in assets/styles.css (Dash auto-loads it). Data is read live from
+the database on every refresh; the page refreshes itself every 24 hours via a
+dcc.Interval. Run with: python dashboard/app.py -> :8050.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 from dash import Dash, Input, Output, dash_table, dcc, html
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -27,15 +29,24 @@ from database.db_utils import run_query
 from pipeline.config import ASSETS, TICKERS
 
 RETURNS_CSV = Path(__file__).resolve().parents[1] / "data" / "returns_history.csv.gz"
+REPO_URL = "https://github.com/marksguo/frtb-ima-risk-monitor"
 
-# Dark palette.
+# Dark palette (GitHub-dark inspired).
 BG = "#0d1117"
 PANEL = "#161b22"
 TEXT = "#e6edf3"
+MUTED = "#8b949e"
+BORDER = "#30363d"
+ACCENT = "#58a6ff"
 GRID = "#21262d"
 REGIME_COLORS = {"normal": "#2ecc71", "elevated": "#f1c40f", "stressed": "#e74c3c"}
 ZONE_COLORS = {"green": "#2ecc71", "amber": "#f1c40f", "red": "#e74c3c"}
 WINDOW = 252
+FONT = "Inter, system-ui, sans-serif"
+
+# Make every Plotly chart inherit the dashboard's font for a cohesive look.
+pio.templates.default = "plotly_dark"
+pio.templates["plotly_dark"].layout.font.family = FONT
 
 # FRTB risk classes, in book order, for the Scenario Lab shock dropdown.
 RISK_CLASSES = list(dict.fromkeys(a["asset_class"] for a in ASSETS.values()))
@@ -126,7 +137,7 @@ def figure_es_var() -> go.Figure:
                              line=dict(color="#f78166", width=2, dash="dot")))
     fig.update_layout(title="ES vs VaR (last 252 days)", template="plotly_dark",
                       paper_bgcolor=PANEL, plot_bgcolor=PANEL,
-                      legend=dict(orientation="h", y=1.12, x=0),
+                      legend=dict(orientation="h", y=1.14, x=1, xanchor="right"),
                       margin=dict(l=50, r=20, t=60, b=40),
                       yaxis=dict(title="loss magnitude", gridcolor=GRID),
                       xaxis=dict(gridcolor=GRID))
@@ -221,30 +232,33 @@ def scorecard() -> "html.Div":
     for row in result["rows"]:
         latest = "n/a" if row["latest"] is None else f"{row['latest']:.2%}"
         c = row["changes"]
-        cards.append(html.Div(style={**_panel_style, "flex": "1", "minWidth": "150px"},
-                              children=[
-            html.Div(row["label"], style={"color": "#8b949e", "fontSize": "12px"}),
-            html.Div(latest, style={"color": TEXT, "fontSize": "26px",
-                                    "fontWeight": "bold", "margin": "2px 0 6px"}),
+        cards.append(html.Div(className="card metric-card",
+                              style={"flex": "1", "minWidth": "150px"}, children=[
+            html.Div(row["label"], style={"color": MUTED, "fontSize": "12px",
+                                          "textTransform": "uppercase",
+                                          "letterSpacing": ".04em"}),
+            html.Div(latest, className="mono", style={"color": TEXT, "fontSize": "28px",
+                                    "fontWeight": "600", "margin": "4px 0 8px"}),
             _delta("1d", c["1d"]), _delta("1w", c["1w"]), _delta("1m", c["1m"]),
         ]))
 
     streak = result["regime_streak"]
     regime = result["regime"]
-    cards.append(html.Div(style={**_panel_style, "flex": "1", "minWidth": "150px"},
-                          children=[
-        html.Div("Regime", style={"color": "#8b949e", "fontSize": "12px"}),
-        html.Div(regime, style={"color": REGIME_COLORS.get(regime, TEXT),
-                                "fontSize": "22px", "fontWeight": "bold",
-                                "margin": "2px 0 6px"}),
+    cards.append(html.Div(className="card metric-card",
+                          style={"flex": "1", "minWidth": "150px"}, children=[
+        html.Div("Regime", style={"color": MUTED, "fontSize": "12px",
+                                  "textTransform": "uppercase", "letterSpacing": ".04em"}),
+        html.Div(regime.capitalize(), style={"color": REGIME_COLORS.get(regime, TEXT),
+                                "fontSize": "24px", "fontWeight": "700",
+                                "margin": "4px 0 8px"}),
         html.Div(f"held {streak} trading days",
-                 style={"color": "#8b949e", "fontSize": "13px"}),
+                 style={"color": MUTED, "fontSize": "13px"}),
     ]))
 
     return html.Div([
-        html.Div(f"Period change as of {as_of}  (▲ = risk rose)",
-                 style={"color": "#8b949e", "marginBottom": "8px", "fontSize": "13px"}),
-        html.Div(cards, style={"display": "flex", "gap": "12px", "flexWrap": "wrap"}),
+        html.Div(f"Day / week / month change as of {as_of}   (▲ = risk rose, ▼ = risk fell)",
+                 style={"color": MUTED, "marginBottom": "10px", "fontSize": "13px"}),
+        html.Div(cards, style={"display": "flex", "gap": "14px", "flexWrap": "wrap"}),
     ])
 
 
@@ -306,27 +320,32 @@ def pla_panel() -> "html.Div":
 
 def scenario_controls() -> "html.Div":
     """The Scenario Lab input widgets (vol shock, risk-class directional shock)."""
+    label_style = {"color": MUTED, "fontSize": "12.5px", "fontWeight": "500",
+                   "marginBottom": "10px"}
     return html.Div([
+        html.Div("Build a scenario", className="card-title"),
         html.Div([
-            html.Div("Volatility shock (current risk window)",
-                     style={"color": "#8b949e", "fontSize": "13px"}),
+            html.Div("1. Volatility shock (scales the current risk window)",
+                     style=label_style),
             dcc.Slider(id="sc-vol", min=1.0, max=3.0, step=0.1, value=1.0,
-                       marks={1: "1x", 1.5: "1.5x", 2: "2x", 2.5: "2.5x", 3: "3x"}),
-        ], style={"marginBottom": "14px"}),
+                       marks={1: "1x", 1.5: "1.5x", 2: "2x", 2.5: "2.5x", 3: "3x"},
+                       tooltip={"placement": "top", "always_visible": False}),
+        ], style={"marginBottom": "22px"}),
         html.Div([
-            html.Div("Instantaneous shock to a risk class",
-                     style={"color": "#8b949e", "fontSize": "13px"}),
-            dcc.Dropdown(id="sc-class", options=[{"label": c, "value": c}
-                                                 for c in RISK_CLASSES],
-                         value="Emerging market equity", clearable=False,
-                         style={"backgroundColor": "#0d1117", "color": "#0d1117"}),
-        ], style={"marginBottom": "14px"}),
+            html.Div("2. Shock one risk class", style=label_style),
+            dcc.Dropdown(id="sc-class", className="dash-dropdown",
+                         options=[{"label": c, "value": c} for c in RISK_CLASSES],
+                         value="Emerging market equity", clearable=False),
+        ], style={"marginBottom": "22px"}),
         html.Div([
-            html.Div(id="sc-shock-label",
-                     style={"color": "#8b949e", "fontSize": "13px"}),
+            html.Div(id="sc-shock-label", style=label_style),
             dcc.Slider(id="sc-shock", min=-0.25, max=0.10, step=0.01, value=-0.10,
-                       marks={-0.25: "-25%", -0.1: "-10%", 0: "0", 0.1: "+10%"}),
+                       marks={-0.25: "-25%", -0.1: "-10%", 0: "0", 0.1: "+10%"},
+                       tooltip={"placement": "top", "always_visible": False}),
         ]),
+        html.Div("Move any control to recompute risk instantly.",
+                 style={"color": MUTED, "fontSize": "12px", "marginTop": "18px",
+                        "fontStyle": "italic"}),
     ])
 
 
@@ -398,7 +417,7 @@ def render_scenario(vol: float, klass: str, shock: float) -> "html.Div":
         notes.append("The binding capital approach switches under stress.")
 
     return html.Div([
-        html.Table([header] + rows, style={"width": "100%", "borderCollapse": "collapse"}),
+        html.Table([header] + rows, className="data-table"),
         html.Div(" ".join(notes), style={"color": "#f1c40f", "fontSize": "13px",
                                          "marginTop": "8px"}) if notes else html.Div(),
     ])
@@ -460,10 +479,10 @@ def sensitivity_panel() -> "html.Div":
                         "gap": "20px"}, children=[
             html.Div([html.Div("Marginal & component VaR by asset",
                                style={"color": TEXT, "marginBottom": "6px"}),
-                      html.Table(mc_rows, style={"borderCollapse": "collapse"})]),
+                      html.Table(mc_rows, className="data-table")]),
             html.Div([html.Div("VaR sensitivity to confidence x window",
                                style={"color": TEXT, "marginBottom": "6px"}),
-                      html.Table(grid_rows, style={"borderCollapse": "collapse"})]),
+                      html.Table(grid_rows, className="data-table")]),
         ]),
     ])
 
@@ -506,7 +525,84 @@ app.title = "FRTB IMA Risk Monitor"
 # Exposed so a production WSGI server can serve it: gunicorn dashboard.app:server
 server = app.server
 
-_panel_style = {"backgroundColor": PANEL, "borderRadius": "8px", "padding": "8px"}
+_GRAPH_CONFIG = {"displayModeBar": False, "responsive": True}
+
+
+def _card(children, title: str | None = None, style: dict | None = None,
+          interactive: bool = False) -> html.Div:
+    """A bordered panel with an optional title. `interactive` adds a hover lift."""
+    inner = []
+    if title:
+        inner.append(html.Div(title, className="card-title"))
+    inner.append(children)
+    cls = "card card-interactive" if interactive else "card"
+    return html.Div(inner, className=cls, style=style or {})
+
+
+def _section(title: str, subtitle: str, children) -> html.Div:
+    """A labelled top-level zone: heading, one-line description, divider, body."""
+    return html.Div([
+        html.Div(title, className="section-title"),
+        html.Div(subtitle, className="section-sub"),
+        html.Div(className="section-rule"),
+        children,
+    ], style={"marginBottom": "30px"})
+
+
+def _legend() -> html.Div:
+    """A small colour key so the green/amber/red coding is self-explanatory."""
+    def chip(color, label):
+        return html.Span([
+            html.Span(style={"display": "inline-block", "width": "9px",
+                             "height": "9px", "borderRadius": "50%",
+                             "backgroundColor": color, "marginRight": "6px"}),
+            html.Span(label, style={"color": MUTED, "fontSize": "12px"}),
+        ], style={"marginRight": "16px"})
+    return html.Div([
+        html.Span("Colour key:", style={"color": MUTED, "fontSize": "12px",
+                                        "marginRight": "10px"}),
+        chip(REGIME_COLORS["normal"], "calm / passing"),
+        chip(REGIME_COLORS["elevated"], "elevated / caution"),
+        chip(REGIME_COLORS["stressed"], "stressed / failing"),
+    ], style={"marginTop": "10px"})
+
+
+def _header() -> html.Div:
+    """Top bar: title and tagline on the left, live status and links on the right."""
+    latest = run_query("SELECT MAX(date) AS d FROM daily_risk_metrics")
+    as_of = (str(latest["d"].iloc[0])[:10]
+             if not latest.empty and latest["d"].iloc[0] is not None else "n/a")
+    return html.Div([
+        html.Div([
+            html.H1("FRTB IMA Risk Monitor",
+                    style={"color": TEXT, "margin": "0", "fontSize": "26px",
+                           "fontWeight": "700", "letterSpacing": "-.01em"}),
+            html.Div("A daily Fundamental Review of the Trading Book risk desk: "
+                     "Expected Shortfall, capital, model validation, and live stress testing.",
+                     style={"color": MUTED, "fontSize": "13.5px", "marginTop": "4px",
+                            "maxWidth": "640px"}),
+        ]),
+        html.Div([
+            html.Div([html.Span(className="live-dot"),
+                      html.Span(f"  Updated {as_of}",
+                                style={"color": MUTED, "fontSize": "12.5px",
+                                       "marginLeft": "8px"})],
+                     style={"display": "flex", "alignItems": "center",
+                            "justifyContent": "flex-end", "marginBottom": "8px"}),
+            html.Div([
+                html.A("GitHub", href=REPO_URL, className="nav-link", target="_blank"),
+                html.Span(" · ", style={"color": BORDER}),
+                html.A("Teaching guide", href=f"{REPO_URL}/blob/main/TEACHING.md",
+                       className="nav-link", target="_blank"),
+                html.Span(" · ", style={"color": BORDER}),
+                html.A("Explainer", href=f"{REPO_URL}/blob/main/EXPLAINER.md",
+                       className="nav-link", target="_blank"),
+            ], style={"textAlign": "right"}),
+        ]),
+    ], style={"display": "flex", "justifyContent": "space-between",
+              "alignItems": "flex-start", "flexWrap": "wrap", "gap": "16px",
+              "paddingBottom": "18px", "borderBottom": f"1px solid {BORDER}",
+              "marginBottom": "26px"})
 
 
 def serve_layout() -> html.Div:
@@ -515,45 +611,59 @@ def serve_layout() -> html.Div:
     Inputs:  none.  Output:  the root html.Div.
     """
     return html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
-                           "padding": "20px", "fontFamily": "monospace"}, children=[
-        html.H1("FRTB IMA Risk Monitor",
-                style={"color": TEXT, "marginBottom": "4px"}),
-        html.Div("Historical-simulation VaR / Expected Shortfall, stress calibration, "
-                 "liquidity-horizon scaling, weekly Acerbi-Szekely backtesting, "
-                 "P&L attribution, and an interactive scenario lab.",
-                 style={"color": "#8b949e", "marginBottom": "16px"}),
-        # 24-hour auto refresh.
+                           "padding": "28px 32px", "fontFamily": FONT,
+                           "maxWidth": "1280px", "margin": "0 auto"}, children=[
         dcc.Interval(id="refresh", interval=24 * 60 * 60 * 1000, n_intervals=0),
-        html.Div(id="scorecard", style={"marginBottom": "16px"}),
-        # Interactive Scenario Lab: controls on the left, live results on the right.
-        html.Div([
-            html.H3("Scenario Lab — stress the book and watch risk react",
-                    style={"color": TEXT, "marginTop": "0"}),
-            html.Div(style={"display": "grid", "gridTemplateColumns": "1fr 1fr",
-                            "gap": "20px"}, children=[
-                scenario_controls(),
-                html.Div(id="sc-output"),
+        _header(),
+        _legend(),
+        html.Div(style={"height": "22px"}),
+
+        # ----- Zone 1: today's risk at a glance -----------------------------
+        _section(
+            "Today's Risk", "Where the book sits right now and how it has moved.",
+            html.Div([
+                html.Div(id="scorecard", style={"marginBottom": "18px"}),
+                html.Div(className="grid-2", children=[
+                    _card(dcc.Graph(id="es-var", config=_GRAPH_CONFIG)),
+                    _card(dcc.Graph(id="regime", config=_GRAPH_CONFIG)),
+                ]),
+                html.Div(style={"height": "16px"}),
+                _card(dcc.Graph(id="contrib", config=_GRAPH_CONFIG)),
             ]),
-        ], style={**_panel_style, "marginBottom": "16px"}),
-        html.Div(style={"display": "grid", "gridTemplateColumns": "1fr 1fr",
-                        "gap": "16px"}, children=[
-            html.Div(dcc.Graph(id="es-var"), style=_panel_style),
-            html.Div(dcc.Graph(id="regime"), style=_panel_style),
-            html.Div(dcc.Graph(id="contrib"), style=_panel_style),
-            html.Div([html.H3("Weekly Backtest (last 8)",
-                              style={"color": TEXT, "marginTop": "0"}),
-                      html.Div(id="backtest")], style=_panel_style),
-        ]),
-        # FRTB P&L Attribution (PLA) test, full width below the grid.
-        html.Div([html.H3("P&L Attribution (PLA) Test",
-                          style={"color": TEXT, "marginTop": "0"}),
-                  html.Div(id="pla")],
-                 style={**_panel_style, "marginTop": "16px"}),
-        # Sensitivity analysis: marginal/component VaR + parameter grid.
-        html.Div([html.H3("Sensitivity Analysis",
-                          style={"color": TEXT, "marginTop": "0"}),
-                  html.Div(id="sensitivity")],
-                 style={**_panel_style, "marginTop": "16px"}),
+        ),
+
+        # ----- Zone 2: interactive exploration ------------------------------
+        _section(
+            "Explore the Model",
+            "Stress the book with hypothetical shocks, and see which positions own the risk.",
+            html.Div([
+                _card(html.Div(className="grid-scenario", children=[
+                    scenario_controls(),
+                    html.Div(id="sc-output"),
+                ]), title="Scenario Lab — invent a shock, watch risk react",
+                    interactive=True),
+                html.Div(style={"height": "16px"}),
+                _card(html.Div(id="sensitivity"),
+                      title="Sensitivity Analysis — who owns the risk, and how robust is the number"),
+            ]),
+        ),
+
+        # ----- Zone 3: model validation -------------------------------------
+        _section(
+            "Model Validation",
+            "The checks an FRTB internal model must pass to stay approved.",
+            html.Div(className="grid-2", children=[
+                _card(html.Div(id="pla"),
+                      title="P&L Attribution (PLA) — is the model watching the right risks?"),
+                _card(html.Div(id="backtest"),
+                      title="Weekly Backtest — were the predicted losses the right size?"),
+            ]),
+        ),
+
+        html.Div("Built end-to-end as a portfolio project. Figures are illustrative "
+                 "on a synthetic book; see the README's Limitations section.",
+                 style={"color": MUTED, "fontSize": "12px", "textAlign": "center",
+                        "padding": "10px 0 4px", "borderTop": f"1px solid {BORDER}"}),
     ])
 
 
