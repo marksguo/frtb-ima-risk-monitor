@@ -40,6 +40,8 @@ REPO_URL = "github.com/marksguo/frtb-ima-risk-monitor"
 EXPLAINER_URL = (
     "https://github.com/marksguo/frtb-ima-risk-monitor/blob/main/EXPLAINER.md"
 )
+# Hashtags appended as the final line of every post (helps discoverability).
+HASHTAGS = "#RiskManagement #FRTB #QuantFinance #MarketRisk #ExpectedShortfall"
 FRIDAY = 4
 
 # Brand palette (matches the portfolio "quant terminal" aesthetic).
@@ -233,8 +235,8 @@ def render_card_wide(ctx: dict, hist: pd.DataFrame, out_png: Path) -> None:
 
 
 # Voice spec for caption generation. Mirrors how Marks writes on LinkedIn:
-# memo-style title, no jargon hand-holding, no hashtags, ends with the explainer
-# link. The strict rules carry through to the templated fallback below.
+# memo-style title, no jargon hand-holding, ends with the explainer link and a
+# line of hashtags. The strict rules carry through to the templated fallback below.
 VOICE = (
     "You are Marks Guo, a Statistics + Finance junior at the University of "
     "Rochester. You built this small FRTB IMA risk-monitoring project as a "
@@ -260,9 +262,9 @@ VOICE = (
     "- No conversational openers like 'Quick weekly update on...' or 'Caught "
     "something interesting today...'. Start with the title line on its own, "
     "blank line, then dive straight into the numbers.\n"
-    "- DO NOT include hashtags anywhere in the post.\n"
-    "- End the post with this exact line on its own (and nothing after it): "
-    f"'Definitions and Interpretations: {EXPLAINER_URL}'.\n"
+    "- End the post with this exact line: "
+    f"'Definitions and Interpretations: {EXPLAINER_URL}', then a blank line, "
+    f"then this exact final line of hashtags and nothing after it: '{HASHTAGS}'.\n"
     "- Use ordinary text formatting, no asterisks or markdown bolding around "
     "individual numbers."
 )
@@ -313,7 +315,8 @@ def _fallback_caption(ctx: dict, events: list[dict], mode: str,
             f"Biggest mover today was {ctx['top_mover']} at "
             f"{ctx['top_mover_return']:+.2f}%, worth watching into next week."
             f"{bt}\n\n"
-            f"Definitions and Interpretations: {EXPLAINER_URL}"
+            f"Definitions and Interpretations: {EXPLAINER_URL}\n\n"
+            f"{HASHTAGS}"
         )
     # Event mode.
     headline = events[0]["headline"] if events else "Notable risk move today"
@@ -324,7 +327,8 @@ def _fallback_caption(ctx: dict, events: list[dict], mode: str,
         f"and liquidity-adjusted ES at {ctx['liquidity_adjusted_es']:.2%}. "
         f"Market regime is {ctx['volatility_regime']}, and the day's biggest "
         f"mover was {ctx['top_mover']} at {ctx['top_mover_return']:+.2f}%.\n\n"
-        f"Definitions and Interpretations: {EXPLAINER_URL}"
+        f"Definitions and Interpretations: {EXPLAINER_URL}\n\n"
+        f"{HASHTAGS}"
     )
 
 
