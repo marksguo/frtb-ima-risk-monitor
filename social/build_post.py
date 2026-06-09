@@ -31,7 +31,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from database.db_utils import get_engine, run_query
 from narrative.generate_summary import (
-    api_key_configured, build_daily_context, get_client, _message_text,
+    api_key_configured, build_daily_context, get_client, complete, _message_text,
 )
 
 DRAFTS_DIR = Path(os.getenv("FRTB_DRAFTS_DIR")
@@ -386,11 +386,7 @@ def write_caption(ctx: dict, events: list[dict], mode: str,
         f"Task: {ask}\n\n"
         f"Today's facts (use these exact numbers):\n{_format_metrics(ctx, backtest)}"
     )
-    response = client.messages.create(
-        model="claude-sonnet-4-6", max_tokens=700,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return _message_text(response)
+    return complete(client, prompt, max_tokens=700)
 
 
 def write_draft(ctx: dict, caption: str, events: list[dict], mode: str,

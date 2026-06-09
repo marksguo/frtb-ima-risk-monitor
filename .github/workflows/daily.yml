@@ -32,6 +32,9 @@ jobs:
 
       - name: Run daily update
         env:
+          # Free Gemini tier powers the narrative/caption; Anthropic kept as fallback.
+          FRTB_LLM_PROVIDER: gemini
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python daily_update.py
 

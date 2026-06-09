@@ -4,6 +4,7 @@ numpy
 sqlalchemy
 psycopg2-binary
 anthropic
+google-genai
 plotly
 matplotlib
 dash

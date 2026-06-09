@@ -45,36 +45,84 @@ for _stream in (sys.stdout, sys.stderr):
 
 load_dotenv(ENV_PATH)
 
-# Configurable Claude model. See module docstring for why this differs from the
-# brief's specified (now-deprecated) model ID.
-MODEL = "claude-sonnet-4-6"
+# LLM provider — auto-detected so local runs are FREE without breaking CI:
+#   * explicit FRTB_LLM_PROVIDER=gemini|anthropic always wins;
+#   * else prefer Gemini (free tier) when GEMINI_API_KEY is present (local .env);
+#   * else fall back to Anthropic (paid) if only ANTHROPIC_API_KEY is set (CI).
+_EXPLICIT_PROVIDER = os.getenv("FRTB_LLM_PROVIDER", "").lower()
+if _EXPLICIT_PROVIDER in ("gemini", "anthropic"):
+    PROVIDER = _EXPLICIT_PROVIDER
+elif os.getenv("GEMINI_API_KEY"):
+    PROVIDER = "gemini"
+elif os.getenv("ANTHROPIC_API_KEY"):
+    PROVIDER = "anthropic"
+else:
+    PROVIDER = "gemini"
+# Configurable models. Claude default differs from the brief's (now-deprecated) ID.
+MODEL = "claude-sonnet-4-6"                                    # anthropic
+GEMINI_MODEL = os.getenv("FRTB_GEMINI_MODEL", "gemini-2.5-flash")  # free tier
 
 FRIDAY = 4
 
+_KEY_ENV = {"gemini": "GEMINI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
+
 
 def api_key_configured() -> bool:
-    """Return True if a real (non-placeholder) Anthropic API key is set.
+    """Return True if a real (non-placeholder) key for the active provider is set.
 
-    Inputs:  none (reads ANTHROPIC_API_KEY from the environment).
+    Inputs:  none (reads the provider's key from the environment).
     Output:  True if a usable key is present, else False.
     """
-    key = os.getenv("ANTHROPIC_API_KEY")
+    key = os.getenv(_KEY_ENV.get(PROVIDER, "GEMINI_API_KEY"))
     return bool(key) and not key.startswith("replace_with_")
 
 
-def get_client() -> anthropic.Anthropic:
-    """Create an Anthropic client using the key from the project .env.
+def get_client():
+    """Create an LLM client for the active provider (Gemini free / Anthropic paid).
 
-    Inputs:  none (reads ANTHROPIC_API_KEY from the environment).
-    Output:  a configured anthropic.Anthropic client.
+    Inputs:  none (reads the provider's API key from the environment).
+    Output:  a configured client (google.genai.Client or anthropic.Anthropic).
     Raises:  RuntimeError if the API key is missing or still a placeholder.
     """
-    key = os.getenv("ANTHROPIC_API_KEY")
+    env_name = _KEY_ENV.get(PROVIDER, "GEMINI_API_KEY")
+    key = os.getenv(env_name)
     if not key or key.startswith("replace_with_"):
         raise RuntimeError(
-            f"ANTHROPIC_API_KEY is not set. Edit {ENV_PATH} and provide a real key."
+            f"{env_name} is not set. Edit {ENV_PATH} and provide a real key."
         )
+    if PROVIDER == "gemini":
+        from google import genai
+        return genai.Client(api_key=key)
     return anthropic.Anthropic(api_key=key)
+
+
+def complete(client, prompt: str, max_tokens: int = 400) -> str:
+    """Provider-agnostic single-prompt text completion. Returns plain text.
+
+    Inputs:
+        client:     a client from get_client().
+        prompt:     the full user prompt.
+        max_tokens: output cap.
+    Output:  the generated text, stripped.
+    """
+    if PROVIDER == "gemini":
+        from google.genai import types
+        thinking = None
+        try:  # disable thinking -> reliable output + conserve free-tier quota
+            thinking = types.ThinkingConfig(thinking_budget=0)
+        except Exception:  # noqa: BLE001
+            thinking = None
+        resp = client.models.generate_content(
+            model=GEMINI_MODEL, contents=prompt,
+            config=types.GenerateContentConfig(
+                max_output_tokens=max_tokens, temperature=0.6, thinking_config=thinking),
+        )
+        return (resp.text or "").strip()
+    resp = client.messages.create(
+        model=MODEL, max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return _message_text(resp)
 
 
 def _message_text(response: anthropic.types.Message) -> str:
@@ -111,12 +159,7 @@ def daily_one_liner(metrics: dict, client: anthropic.Anthropic | None = None) ->
         f"Top moving asset: {metrics['top_mover']} ({metrics['top_mover_return']}%).\n"
         "Tone: professional, data-driven, accessible to non-quants."
     )
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=300,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return _message_text(response)
+    return complete(client, prompt, max_tokens=300)
 
 
 def weekly_narrative(weekly_summary_dict: dict,
@@ -141,12 +184,7 @@ def weekly_narrative(weekly_summary_dict: dict,
         "Tone: Sharp, professional, educational. Accessible to finance students "
         "and junior analysts. Do not use em-dashes. Do not use filler phrases."
     )
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=500,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return _message_text(response)
+    return complete(client, prompt, max_tokens=500)
 
 
 def week_ending_for(as_of: pd.Timestamp) -> pd.Timestamp:
