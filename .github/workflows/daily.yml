@@ -2,8 +2,18 @@ name: Daily risk update
 
 on:
   schedule:
-    # 22:30 UTC on weekdays (after the US market close in both EST and EDT).
-    - cron: "30 22 * * 1-5"
+    # Goal: run once, right after the US market close (4:00pm ET), on the day
+    # of, year-round. GitHub cron is fixed UTC with no DST, so we fire three
+    # weekday triggers and let the gate step below admit exactly one:
+    #   20:05 UTC -> 4:05pm EDT / 3:05pm EST
+    #   21:05 UTC -> 5:05pm EDT / 4:05pm EST
+    #   22:05 UTC -> 6:05pm EDT / 5:05pm EST
+    # In each season the first trigger at or after 4:00pm ET with the day's
+    # close available does the work; the rest no-op. The later triggers also
+    # act as backstops if the close bar is not yet published at 4:05pm.
+    - cron: "5 20 * * 1-5"
+    - cron: "5 21 * * 1-5"
+    - cron: "5 22 * * 1-5"
   workflow_dispatch: {}
 
 permissions:
@@ -19,18 +29,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Gate to the day's close (ET, DST-proof, dedup)
+        id: gate
+        run: |
+          RUN=true
+          # Manual workflow_dispatch always runs; only scheduled runs are gated.
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            NOW=$((10#$(TZ=America/New_York date +%H%M)))
+            TODAY=$(TZ=America/New_York date +%F)
+            if [ "$NOW" -lt 1600 ]; then
+              echo "ET time $NOW is before the 4:00pm close; skipping this trigger."
+              RUN=false
+            elif grep -q "| $TODAY |" DAILY_LOG.md 2>/dev/null; then
+              echo "DAILY_LOG already has $TODAY; another trigger already updated today."
+              RUN=false
+            fi
+          fi
+          echo "run=$RUN" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
+        if: steps.gate.outputs.run == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: pip
 
       - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run daily update
+        if: steps.gate.outputs.run == 'true'
         env:
           # Free Gemini tier powers the narrative/caption; Anthropic kept as fallback.
           FRTB_LLM_PROVIDER: gemini
@@ -39,6 +70,7 @@ jobs:
         run: python daily_update.py
 
       - name: Commit and push changes
+        if: steps.gate.outputs.run == 'true'
         run: |
           git config user.name "frtb-risk-bot"
           git config user.email "actions@users.noreply.github.com"
