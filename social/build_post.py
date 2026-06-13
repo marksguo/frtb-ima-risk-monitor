@@ -386,7 +386,14 @@ def write_caption(ctx: dict, events: list[dict], mode: str,
         f"Task: {ask}\n\n"
         f"Today's facts (use these exact numbers):\n{_format_metrics(ctx, backtest)}"
     )
-    return complete(client, prompt, max_tokens=700)
+    try:
+        return complete(client, prompt, max_tokens=700)
+    except Exception as exc:  # noqa: BLE001
+        # A live provider error (e.g. a 429 once the shared free Gemini quota is
+        # spent) must not abort the build; fall back to the templated voice match
+        # so the draft package still ships with correct numbers.
+        print(f"[build_post] Caption LLM failed ({exc!r}); using templated fallback.")
+        return _fallback_caption(ctx, events, mode, backtest)
 
 
 def write_draft(ctx: dict, caption: str, events: list[dict], mode: str,

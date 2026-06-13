@@ -321,13 +321,13 @@ def main() -> None:
         print("[generate_summary] Skipped: ANTHROPIC_API_KEY not set in .env.")
         return
 
-    client = get_client()
     engine = get_engine()
+    daily = weekly = None
     try:
+        client = get_client()
         daily_ctx = build_daily_context(engine)
         daily = daily_one_liner(daily_ctx, client=client)
 
-        weekly = None
         as_of = daily_ctx["as_of"]
         if as_of.dayofweek == FRIDAY:
             weekly_ctx = build_weekly_context(engine, daily_ctx)
@@ -336,6 +336,13 @@ def main() -> None:
         store_narrative(
             engine, week_ending_for(as_of), daily, weekly, daily_ctx["key_movers"]
         )
+    except Exception as exc:  # noqa: BLE001
+        # The narrative is an optional, cosmetic layer on top of the risk
+        # numbers. A provider error (most commonly a 429 when the shared free
+        # Gemini quota is spent) must NOT take down the daily risk pipeline, so
+        # log it and skip; the metrics, snapshot, and scorecard still publish.
+        print(f"[generate_summary] Skipped: narrative generation failed ({exc!r}).")
+        return
     finally:
         engine.dispose()
 
