@@ -4,7 +4,7 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 Period-over-period change in the headline risk metrics. All values are
 loss magnitudes (higher = more potential loss), so a ▲ means risk rose.
 
-**As of 2026-07-23**
+**As of 2026-07-24**
 
 | Metric | Latest | 1d | 1w | 1m |
 |--------|--------|----|----|----|
@@ -13,4 +13,4 @@ loss magnitudes (higher = more potential loss), so a ▲ means risk rose.
 | Stressed ES | 2.56% | → flat | → flat | → flat |
 | Liq-adj ES | 3.59% | → flat | → flat | ▼ -0.1% |
 
-Regime: **elevated** (unchanged for 7 trading days)
+Regime: **elevated** (unchanged for 8 trading days)
