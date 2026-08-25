@@ -5,6 +5,7 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 
 | Date | 97.5% ES | Regime | Notable |
 |------|----------|--------|---------|
+| 2026-08-25 | 1.74% | elevated | - |
 | 2026-08-24 | 1.74% | elevated | - |
 | 2026-08-21 | 1.74% | elevated | - |
 | 2026-08-20 | 1.74% | elevated | - |
@@ -34,4 +35,3 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 | 2026-07-17 | 1.74% | elevated | - |
 | 2026-07-16 | 1.74% | elevated | - |
 | 2026-07-15 | 1.74% | elevated | - |
-| 2026-07-14 | 1.74% | stressed | - |
