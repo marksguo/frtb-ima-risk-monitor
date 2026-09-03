@@ -4,13 +4,13 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 Period-over-period change in the headline risk metrics. All values are
 loss magnitudes (higher = more potential loss), so a ▲ means risk rose.
 
-**As of 2026-09-02**
+**As of 2026-09-03**
 
 | Metric | Latest | 1d | 1w | 1m |
 |--------|--------|----|----|----|
 | 97.5% ES | 1.74% | → flat | → flat | → flat |
 | 97.5% VaR | 1.37% | → flat | → flat | → flat |
 | Stressed ES | 2.56% | → flat | → flat | → flat |
-| Liq-adj ES | 3.61% | → flat | → flat | ▼ -0.3% |
+| Liq-adj ES | 3.61% | → flat | → flat | → flat |
 
-Regime: **elevated** (unchanged for 18 trading days)
+Regime: **elevated** (unchanged for 19 trading days)
