@@ -2,6 +2,7 @@
 
 Auto-generated ready-to-post packages. Review the `.md`, then post with the matching feed image, or use the cover image when posting as a LinkedIn Article.
 
+- **2026-09-04** - [caption](2026-09-04.md) + [feed image](2026-09-04.png) + [article cover](2026-09-04_cover.png)
 - **2026-08-28** - [caption](2026-08-28.md) + [feed image](2026-08-28.png) + [article cover](2026-08-28_cover.png)
 - **2026-08-21** - [caption](2026-08-21.md) + [feed image](2026-08-21.png) + [article cover](2026-08-21_cover.png)
 - **2026-08-14** - [caption](2026-08-14.md) + [feed image](2026-08-14.png) + [article cover](2026-08-14_cover.png)
