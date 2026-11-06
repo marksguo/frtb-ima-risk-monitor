@@ -5,6 +5,7 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 
 | Date | 97.5% ES | Regime | Notable |
 |------|----------|--------|---------|
+| 2026-11-05 | 1.77% | stressed | Volatility regime shifted: elevated -> stressed; Book risk at a 60-day high: 97.5% ES 1.77% |
 | 2026-11-04 | 1.74% | elevated | - |
 | 2026-11-03 | 1.74% | elevated | - |
 | 2026-11-02 | 1.74% | elevated | - |
@@ -34,4 +35,3 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 | 2026-09-29 | 1.74% | elevated | - |
 | 2026-09-28 | 1.74% | elevated | - |
 | 2026-09-25 | 1.74% | elevated | - |
-| 2026-09-24 | 1.74% | elevated | - |
