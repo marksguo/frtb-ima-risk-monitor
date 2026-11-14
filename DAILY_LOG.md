@@ -5,6 +5,7 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 
 | Date | 97.5% ES | Regime | Notable |
 |------|----------|--------|---------|
+| 2026-11-13 | 1.77% | stressed | Weekly ES backtest breached (Acerbi-Szekely) |
 | 2026-11-12 | 1.77% | stressed | - |
 | 2026-11-11 | 1.77% | stressed | - |
 | 2026-11-10 | 1.77% | stressed | - |
@@ -34,4 +35,3 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 | 2026-10-07 | 1.74% | elevated | - |
 | 2026-10-06 | 1.74% | elevated | - |
 | 2026-10-05 | 1.74% | elevated | - |
-| 2026-10-02 | 1.74% | elevated | - |
