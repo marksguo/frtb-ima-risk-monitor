@@ -5,7 +5,8 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 
 | Date | 97.5% ES | Regime | Notable |
 |------|----------|--------|---------|
-| 2026-11-20 | 1.83% | stressed | Book risk at a 60-day high: 97.5% ES 1.83%; Weekly ES backtest breached (Acerbi-Szekely) |
+| 2026-11-23 | 1.83% | stressed | - |
+| 2026-11-20 | 1.83% | stressed | - |
 | 2026-11-19 | 1.77% | stressed | - |
 | 2026-11-18 | 1.77% | stressed | - |
 | 2026-11-17 | 1.77% | stressed | - |
@@ -34,4 +35,3 @@ Auto-generated each trading day by the FRTB IMA Risk Monitor pipeline.
 | 2026-10-15 | 1.74% | elevated | - |
 | 2026-10-14 | 1.74% | elevated | - |
 | 2026-10-13 | 1.74% | elevated | - |
-| 2026-10-12 | 1.74% | elevated | - |
